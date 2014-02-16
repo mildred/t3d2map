@@ -1,0 +1,11 @@
+/CMakeCache.txt
+/CMakeLists.txt.user
+/t3d2map.xml
+/src/t3d2map
+
+Makefile
+CMakeFiles/
+cmake_install.cmake
+
+moc_*
+*~
