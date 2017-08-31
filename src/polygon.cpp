@@ -3,13 +3,14 @@
 #include "polygon.h"
 #include "vector.h"
 #include "plane.h"
+#include "polylist.h"
 
 Polygon::Polygon(QObject *parent) :
     Section(parent)
 {
 }
 
-Polygon *Polygon::read_t3d(QIODevice &f, QString line)
+Polygon *Polygon::read_t3d(QIODevice &f, QString line, PolyList *pl)
 {
     static QRegExp end("^\\s*End Polygon");
     static QRegExp vector("^\\s*(\\S+)\\s+([\\S^,]+),([\\S^,]+),([\\S^,]+)");
@@ -30,7 +31,7 @@ Polygon *Polygon::read_t3d(QIODevice &f, QString line)
             else if(vecname == "Normal")   obj->plane.normal = vec;
             else if(vecname == "TextureU") obj->textureU = vec;
             else if(vecname == "TextureV") obj->textureV = vec;
-            else if(vecname == "Vertex")   obj->vertices << vec;
+            else if(vecname == "Vertex")   obj->vertices << pl->add_vertex(vec);
 
         } else if(pan.indexIn(l) == 0) {
             obj->texturePan = {vector.cap(1).toDouble(), vector.cap(2).toDouble()};

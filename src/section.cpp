@@ -22,8 +22,6 @@ Section *Section::read_t3d(QIODevice &f)
 
     if(name == "PolyList") {
         return PolyList::read_t3d(f, l);
-    } else if(name == "Polygon") {
-        return Polygon::read_t3d(f, l);
     } else {
         qDebug() << "unprocessed:" << l;
     }

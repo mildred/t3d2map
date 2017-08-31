@@ -6,6 +6,7 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 # by default only QtCore and QtGui modules are enabled
 # other modules must be enabled like this:
 SET(QT_USE_QTTEST TRUE)
+SET(QT_USE_QTOPENGL TRUE)
 
 find_package(Qt4 REQUIRED)
 include(${QT_USE_FILE})

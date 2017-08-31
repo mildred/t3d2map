@@ -1,6 +1,10 @@
 #ifndef VECTOR_H
 #define VECTOR_H
 
+#include <array>
+
+/*
+
 #include <initializer_list>
 #include <assert.h>
 #include "catch.hpp"
@@ -27,5 +31,10 @@ public:
 
 typedef vector<double,3> double3;
 typedef vector<double,2> double2;
+
+*/
+
+typedef std::array<double,3> double3;
+typedef std::array<double,2> double2;
 
 #endif // VECTOR_H
