@@ -3,6 +3,11 @@ Convert WhelOfTime / Unreal1 maps in t3d to something else
 
 Unfinished draft that tried in both C++ and ruby to make something but failed. See https://github.com/hogsy/t3d2map and my fork of it.
 
+The issue with this conversion is that : 
+
+- map files are composed of convex only brushes
+- t3d represents a CSG tree buth substracts and adds
+
 ## resources
 
 .map file format
