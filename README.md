@@ -8,6 +8,18 @@ The issue with this conversion is that :
 - map files are composed of convex only brushes
 - t3d represents a CSG tree buth substracts and adds
 
+## CGAL algorithm
+
+- start with a full Nef polyhedron as world or a Surface_mesh that spans the whole world plus some little bit
+- for each brush
+    - get the polygon soup to CGAL to a `Surface_mesh`
+    - apply the texture https://doc.cgal.org/latest/Surface_mesh_parameterization/index.html
+    - apply the CSG binary operation of the given object with the world (use corefine algorithms to keep texture?)
+    - apply texture to vertices that did not change and detect new vertices (those without texture coordinates) https://sympa.inria.fr/sympa/arc/cgal-discuss/2011-09/msg00012.html
+- copy the world to a polyhedron: https://github.com/CGAL/cgal/issues/5431 (if needed)
+- create a convex decomposition of the world polyhedra
+- export to .map
+
 ## resources
 
 .map file format
