@@ -17,7 +17,10 @@ The issue with this conversion is that :
 
 T3D format:
 
-- https://wiki.beyondunreal.com/Legacy:T3D_File
+- https://beyondunrealwiki.github.io/pages/t3d-file.html
+- https://beyondunrealwiki.github.io/pages/brush.html
+- https://beyondunrealwiki.github.io/pages/csg.html
+- http://web.archive.org/web/20050913035722/http://users.skynet.be/fa550206/Slug-Production/Data/OpenGL-Documents/T3D-File-Format/T3D-File-Format.htm
 
 Convex decomposition:
 
