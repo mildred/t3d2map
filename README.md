@@ -21,7 +21,7 @@ Note: I believe there is no way to have face properties in a Nef_Polyhedra. Give
        - assign the face properties to the face vertices that did not reference it
    - keep doing the previous iteration step until no more faces are being assigned
    - assign the rest of faces with null properties
-   - if a face is split in a non contiguous manner, the non contiguous parts will not receive face properties. Solution: face properties should be indexed by their normal and their distance from the origin.
+   - if a face is split in a non contiguous manner, the non contiguous parts will not receive face properties. Solution: face properties should be indexed by their normal and their distance from the origin. Because of floating point errors, it is possible that generated faces are not exactly coplanar. Comparaison must be performed with some epsilon, and probably hash based stucture is not going to fit.
    - this is possibly expansive
 - Use custom algorithm for convex decomposition and perform everything with the Surface_mesh objects.
 
