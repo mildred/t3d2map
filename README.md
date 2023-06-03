@@ -19,6 +19,7 @@ Note: I believe there is no way to have face properties in a Nef_Polyhedra. Give
        - for each face property, check if the current face is a subset of the original face
            - apply rotation and translation to both to eliminate z coordinate and work in 2D
            - use 2D boolean algorithm to check inclusion / intersection. Possibly full inclusion might not be met because of floating point errors.
+       - if multiple faces matches, keep the face for which the (intersection surface - excluded surface) is the greatest compared to the original surface
        - assign the face property to the face
        - assign the face properties to the face vertices that did not reference it
    - keep doing the previous iteration step until no more faces are being assigned
