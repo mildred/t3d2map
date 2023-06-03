@@ -25,6 +25,19 @@ Use:
 
     ./t3d2map ./examples/test.t3d
 
+Roadmap:
+
+- [x] Parse t3d files
+- [x] Parse brushes
+- [x] Implement actor translation
+- [ ] Implement actor rotation
+- [ ] Implement actor scaling
+- [x] Generate CSG concave mesh
+- [ ] Decompose in convex meshes
+- [ ] Generate .map file
+- [ ] Parse texture UV mapping
+- [ ] Generate UV mapping to .map files
+
 ## CGAL algorithm
 
 Note: I believe there is no way to have face properties in a Nef_Polyhedra. Given this limitation there are two options:
