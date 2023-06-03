@@ -12,6 +12,7 @@
 #include <CGAL/Polygon_mesh_processing/corefinement.h>
 #include <CGAL/Polygon_mesh_processing/transform.h>
 #include <CGAL/Polygon_mesh_processing/stitch_borders.h>
+#include <CGAL/Polygon_mesh_processing/repair.h>
 #include <CGAL/Polygon_mesh_processing/clip.h>
 #include <CGAL/convex_decomposition_3.h>
 #include <CGAL/Aff_transformation_3.h>
@@ -245,7 +246,7 @@ struct Map {
     return false;
   }
 
-  bool get_bounding_box(Mesh &bounding, double pad = 0.0) {
+  bool get_bounding_box(Mesh &bounding, bool triangulate = true, double pad = 0.0) {
     using namespace CGAL::Polygon_mesh_processing;
 
     if (pad == 0.0) pad = (zmax - zmin) / 10;
@@ -276,15 +277,46 @@ struct Map {
     bounding.add_face(v5, v7, v3, v1); // ymax
 
     stitch_borders(bounding);
+    remove_isolated_vertices(bounding); // probably not needed
 
-    if (!triangulate_faces(bounding)) {
+    if (triangulate && !triangulate_faces(bounding)) {
       cerr << "Cannot triangulate bounding box" << endl;
       return false;
     }
     return true;
   }
 
-  bool clip_mesh(Mesh &current, std::list<Mesh> &queue, std::list<Mesh> &res) {
+  bool get_clipped_bounding_box(Mesh &res, Kernel::Plane_3 plane) {
+    using namespace CGAL::Polygon_mesh_processing;
+    using namespace CGAL::parameters;
+    const bool use_nef = false;
+
+    Mesh bounding;
+    if (!get_bounding_box(bounding)) return false;
+
+    if (use_nef) {
+      Nef bounding_nef(bounding);
+      Nef result;
+
+      const bool use_halfspace = false; // not allowed by kernel
+      if (use_halfspace) {
+        Nef halfspace(plane, Nef::EXCLUDED);
+        result = bounding_nef.intersection(halfspace);
+      } else {
+        result = bounding_nef.intersection(plane, Nef::CLOSED_HALFSPACE);
+      }
+
+      CGAL::convert_nef_polyhedron_to_polygon_mesh(result, res);
+    } else {
+      cerr << "Clip bounding box" << endl;
+      clip(bounding, plane, clip_volume(true));
+      res = bounding;
+    }
+
+    return true;
+  }
+
+  bool clip_mesh(Mesh &current, std::list<Mesh> &queue, std::list<Mesh> &res, bool use_clip = false) {
     using namespace CGAL::Polygon_mesh_processing;
     using namespace CGAL::parameters;
     using namespace CGAL;
@@ -338,10 +370,28 @@ struct Map {
 
         convex = false;
         Mesh complement(current);
-        cerr << "clip current mesh" << endl;
-        clip(current, clip_plane, clip_volume(true));
-        cerr << "clip complement mesh" << endl;
-        clip(complement, rclip_plane, clip_volume(true));
+        if (use_clip) {
+          // TODO: does not work
+          // <https://github.com/CGAL/cgal/issues/7493>
+          cerr << "clip current mesh" << endl;
+          clip(current, clip_plane, clip_volume(true));
+          cerr << "clip complement mesh" << endl;
+          clip(complement, rclip_plane, clip_volume(true));
+        } else {
+          // Alternative to clipping, use CSG difference instead of infinite
+          // plane clipping which seems to have some issues.
+          Mesh halfspace;
+          Mesh current_res;
+          if (!get_clipped_bounding_box(halfspace, clip_plane)) return false;
+          cerr << "clip/intersection current mesh" << endl;
+          //corefine_and_compute_difference(current, halfspace, current_res);
+          corefine_and_compute_intersection(current, halfspace, current_res);
+          current = current_res;
+          if (!get_clipped_bounding_box(halfspace, clip_plane)) return false;
+          cerr << "clip/intersection complement mesh" << endl;
+          //corefine_and_compute_difference(current, halfspace, complement);
+          corefine_and_compute_intersection(current, halfspace, complement);
+        }
         cerr << "push back 2 meshes" << endl;
         queue.push_back(complement);
         queue.push_back(current);
