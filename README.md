@@ -10,14 +10,17 @@ The issue with this conversion is that :
 
 ## CGAL algorithm
 
-- start with a full Nef polyhedron as world or a Surface_mesh that spans the whole world plus some little bit
-- for each brush
-    - get the polygon soup to CGAL to a `Surface_mesh`
-    - apply the texture https://doc.cgal.org/latest/Surface_mesh_parameterization/index.html
-    - apply the CSG binary operation of the given object with the world (use corefine algorithms to keep texture?)
-    - apply texture to vertices that did not change and detect new vertices (those without texture coordinates) https://sympa.inria.fr/sympa/arc/cgal-discuss/2011-09/msg00012.html
-- copy the world to a polyhedron: https://github.com/CGAL/cgal/issues/5431 (if needed)
-- create a convex decomposition of the world polyhedra
+- if the corefine boolean algorithms allows to work on a Nef_Polyhedra, use this data structure for boolean operation, else use Surface_mesh or a data structure that is compatible
+- start with a world object that spans the world bounding box plus some padding, no texture (or transparent texture)
+- for each brush in the t3d file
+    - get the polygon soup to CGAL to a `Surface_mesh` (and copy it to a Nef_Polyhedra if that is the format we are using https://github.com/CGAL/cgal/issues/5431 )
+    - add face properties corresponding to the UV texture mapping (origin, U, V, texture name) https://doc.cgal.org/latest/Surface_mesh_parameterization/index.html
+    - triangulate mesh if needed using a visitor to copy source face properties to target faces
+    - apply the CSG binary operation of the given object with the world using the corefine algorithms to keep texture information. Have the corefine visitor copy the texture information from the source faces to the resulting faces
+    - the new mesh is now the new world, go on to the next T3D mesh
+- copy the world to a polyhedron: https://github.com/CGAL/cgal/issues/5431 (if needed). Copy face properties.
+- create a convex decomposition of the world polyhedra, make sure that the face properties are conserved
+- new faces should be assigned the empty texture property (same as original world mesh)
 - export to .map
 
 ## resources
