@@ -1,0 +1,269 @@
+Begin Map
+Begin Actor Class=LevelInfo Name=LevelInfo0
+    TimeSeconds=412.473267
+    Summary=LevelSummary'MyLevel.LevelSummary'
+    bHighDetailMode=False
+    NavigationPointList=PlayerStart'MyLevel.PlayerStart0'
+    AIProfile(0)=1283318
+    bPathsRebuilt=True
+    Level=LevelInfo'MyLevel.LevelInfo0'
+    Tag=LevelInfo
+    Region=(Zone=LevelInfo'MyLevel.LevelInfo0',iLeaf=-1)
+    Name=LevelInfo0
+End Actor
+Begin Actor Class=Brush Name=Brush0
+    MainScale=(SheerAxis=SHEER_ZX)
+    PostScale=(SheerAxis=SHEER_ZX)
+    Level=LevelInfo'MyLevel.LevelInfo0'
+    Tag=Brush
+    Region=(Zone=LevelInfo'MyLevel.LevelInfo0',iLeaf=-1)
+    Location=(Y=112.000000,Z=-96.000000)
+    Begin Brush Name=Brush
+       Begin PolyList
+          Begin Polygon Item=OUTSIDE Link=0
+             Origin   -00128.000000,-00128.000000,+00032.000000
+             Normal   +00000.000000,+00000.000000,+00001.000000
+             TextureU +00000.000000,+00001.000000,-00000.000000
+             TextureV -00001.000000,+00000.000000,+00000.000000
+             Vertex   -00128.000000,-00128.000000,+00032.000000
+             Vertex   +00128.000000,-00128.000000,+00032.000000
+             Vertex   +00128.000000,+00128.000000,+00032.000000
+             Vertex   -00128.000000,+00128.000000,+00032.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Link=1
+             Origin   -00128.000000,+00128.000000,-00032.000000
+             Normal   +00000.000000,+00000.000000,-00001.000000
+             TextureU -00000.000000,-00001.000000,-00000.000000
+             TextureV -00001.000000,+00000.000000,+00000.000000
+             Vertex   -00128.000000,+00128.000000,-00032.000000
+             Vertex   +00128.000000,+00128.000000,-00032.000000
+             Vertex   +00128.000000,-00128.000000,-00032.000000
+             Vertex   -00128.000000,-00128.000000,-00032.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Link=2
+             Origin   -00128.000000,+00128.000000,-00032.000000
+             Normal   +00000.000000,+00001.000000,+00000.000000
+             TextureU +00001.000000,-00000.000000,+00000.000000
+             TextureV +00000.000000,+00000.000000,-00001.000000
+             Vertex   -00128.000000,+00128.000000,-00032.000000
+             Vertex   -00128.000000,+00128.000000,+00032.000000
+             Vertex   +00128.000000,+00128.000000,+00032.000000
+             Vertex   +00128.000000,+00128.000000,-00032.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Link=3
+             Origin   +00128.000000,-00128.000000,-00032.000000
+             Normal   +00000.000000,-00001.000000,+00000.000000
+             TextureU -00001.000000,-00000.000000,-00000.000000
+             TextureV +00000.000000,+00000.000000,-00001.000000
+             Vertex   +00128.000000,-00128.000000,-00032.000000
+             Vertex   +00128.000000,-00128.000000,+00032.000000
+             Vertex   -00128.000000,-00128.000000,+00032.000000
+             Vertex   -00128.000000,-00128.000000,-00032.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Link=4
+             Origin   +00128.000000,+00128.000000,-00032.000000
+             Normal   +00001.000000,+00000.000000,+00000.000000
+             TextureU +00000.000000,-00001.000000,+00000.000000
+             TextureV +00000.000000,+00000.000000,-00001.000000
+             Vertex   +00128.000000,+00128.000000,-00032.000000
+             Vertex   +00128.000000,+00128.000000,+00032.000000
+             Vertex   +00128.000000,-00128.000000,+00032.000000
+             Vertex   +00128.000000,-00128.000000,-00032.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Link=5
+             Origin   -00128.000000,-00128.000000,-00032.000000
+             Normal   -00001.000000,+00000.000000,+00000.000000
+             TextureU +00000.000000,+00001.000000,+00000.000000
+             TextureV +00000.000000,+00000.000000,-00001.000000
+             Vertex   -00128.000000,-00128.000000,-00032.000000
+             Vertex   -00128.000000,-00128.000000,+00032.000000
+             Vertex   -00128.000000,+00128.000000,+00032.000000
+             Vertex   -00128.000000,+00128.000000,-00032.000000
+          End Polygon
+       End PolyList
+    End Brush
+    Brush=Model'MyLevel.Brush'
+    Name=Brush0
+End Actor
+Begin Actor Class=Brush Name=Brush1
+    CsgOper=CSG_Subtract
+    MainScale=(SheerAxis=SHEER_ZX)
+    PostScale=(SheerAxis=SHEER_ZX)
+    Level=LevelInfo'MyLevel.LevelInfo0'
+    Tag=Brush
+    Region=(Zone=LevelInfo'MyLevel.LevelInfo0',iLeaf=2,ZoneNumber=63)
+    Begin Brush Name=Model2
+       Begin PolyList
+          Begin Polygon Item=OUTSIDE Texture=RainDropsA Link=0
+             Origin   -00512.000000,-00512.000000,+00128.000000
+             Normal   +00000.000000,+00000.000000,+00001.000000
+             TextureU +00000.000000,+00001.000000,-00000.000000
+             TextureV -00001.000000,+00000.000000,+00000.000000
+             Vertex   -00512.000000,-00512.000000,+00128.000000
+             Vertex   +00512.000000,-00512.000000,+00128.000000
+             Vertex   +00512.000000,+00512.000000,+00128.000000
+             Vertex   -00512.000000,+00512.000000,+00128.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Texture=JMoon0 Link=1
+             Origin   -00512.000000,+00512.000000,-00128.000000
+             Normal   +00000.000000,+00000.000000,-00001.000000
+             TextureU -00000.000000,-00001.000000,-00000.000000
+             TextureV -00001.000000,+00000.000000,+00000.000000
+             Vertex   -00512.000000,+00512.000000,-00128.000000
+             Vertex   +00512.000000,+00512.000000,-00128.000000
+             Vertex   +00512.000000,-00512.000000,-00128.000000
+             Vertex   -00512.000000,-00512.000000,-00128.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Texture=CrateMetal01 Link=2
+             Origin   -00512.000000,+00512.000000,-00128.000000
+             Normal   +00000.000000,+00001.000000,+00000.000000
+             TextureU +00001.000000,-00000.000000,+00000.000000
+             TextureV +00000.000000,+00000.000000,-00001.000000
+             Vertex   -00512.000000,+00512.000000,-00128.000000
+             Vertex   -00512.000000,+00512.000000,+00128.000000
+             Vertex   +00512.000000,+00512.000000,+00128.000000
+             Vertex   +00512.000000,+00512.000000,-00128.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Texture=CrateMetal01 Link=3
+             Origin   +00512.000000,-00512.000000,-00128.000000
+             Normal   +00000.000000,-00001.000000,+00000.000000
+             TextureU -00001.000000,-00000.000000,-00000.000000
+             TextureV +00000.000000,+00000.000000,-00001.000000
+             Vertex   +00512.000000,-00512.000000,-00128.000000
+             Vertex   +00512.000000,-00512.000000,+00128.000000
+             Vertex   -00512.000000,-00512.000000,+00128.000000
+             Vertex   -00512.000000,-00512.000000,-00128.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Texture=CrateMetal01 Link=4
+             Origin   +00512.000000,+00512.000000,-00128.000000
+             Normal   +00001.000000,+00000.000000,+00000.000000
+             TextureU +00000.000000,-00001.000000,+00000.000000
+             TextureV +00000.000000,+00000.000000,-00001.000000
+             Vertex   +00512.000000,+00512.000000,-00128.000000
+             Vertex   +00512.000000,+00512.000000,+00128.000000
+             Vertex   +00512.000000,-00512.000000,+00128.000000
+             Vertex   +00512.000000,-00512.000000,-00128.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Texture=CrateMetal01 Link=5
+             Origin   -00512.000000,-00512.000000,-00128.000000
+             Normal   -00001.000000,+00000.000000,+00000.000000
+             TextureU +00000.000000,+00001.000000,+00000.000000
+             TextureV +00000.000000,+00000.000000,-00001.000000
+             Vertex   -00512.000000,-00512.000000,-00128.000000
+             Vertex   -00512.000000,-00512.000000,+00128.000000
+             Vertex   -00512.000000,+00512.000000,+00128.000000
+             Vertex   -00512.000000,+00512.000000,-00128.000000
+          End Polygon
+       End PolyList
+    End Brush
+    Brush=Model'MyLevel.Model2'
+    Name=Brush1
+End Actor
+Begin Actor Class=Brush Name=Brush2
+    CsgOper=CSG_Add
+    MainScale=(SheerAxis=SHEER_ZX)
+    PostScale=(SheerAxis=SHEER_ZX)
+    Level=LevelInfo'MyLevel.LevelInfo0'
+    Tag=Brush
+    Region=(Zone=LevelInfo'MyLevel.LevelInfo0',iLeaf=-1)
+    Location=(Y=112.000000,Z=-96.000000)
+    Begin Brush Name=Model3
+       Begin PolyList
+          Begin Polygon Item=OUTSIDE Texture=128TaintRed Link=0
+             Origin   -00128.000000,-00128.000000,+00032.000000
+             Normal   +00000.000000,+00000.000000,+00001.000000
+             TextureU +00000.000000,+00001.000000,-00000.000000
+             TextureV -00001.000000,+00000.000000,+00000.000000
+             Vertex   -00128.000000,-00128.000000,+00032.000000
+             Vertex   +00128.000000,-00128.000000,+00032.000000
+             Vertex   +00128.000000,+00128.000000,+00032.000000
+             Vertex   -00128.000000,+00128.000000,+00032.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Link=1
+             Origin   -00128.000000,+00128.000000,-00032.000000
+             Normal   +00000.000000,+00000.000000,-00001.000000
+             TextureU -00000.000000,-00001.000000,-00000.000000
+             TextureV -00001.000000,+00000.000000,+00000.000000
+             Vertex   -00128.000000,+00128.000000,-00032.000000
+             Vertex   +00128.000000,+00128.000000,-00032.000000
+             Vertex   +00128.000000,-00128.000000,-00032.000000
+             Vertex   -00128.000000,-00128.000000,-00032.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Texture=AngrealEarthTremorPickupTex Link=2
+             Origin   -00128.000000,+00128.000000,-00032.000000
+             Normal   +00000.000000,+00001.000000,+00000.000000
+             TextureU +00001.000000,-00000.000000,+00000.000000
+             TextureV +00000.000000,+00000.000000,-00001.000000
+             Vertex   -00128.000000,+00128.000000,-00032.000000
+             Vertex   -00128.000000,+00128.000000,+00032.000000
+             Vertex   +00128.000000,+00128.000000,+00032.000000
+             Vertex   +00128.000000,+00128.000000,-00032.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Texture=AngrealEarthTremorPickupTex Link=3
+             Origin   +00128.000000,-00128.000000,-00032.000000
+             Normal   +00000.000000,-00001.000000,+00000.000000
+             TextureU -00001.000000,-00000.000000,-00000.000000
+             TextureV +00000.000000,+00000.000000,-00001.000000
+             Vertex   +00128.000000,-00128.000000,-00032.000000
+             Vertex   +00128.000000,-00128.000000,+00032.000000
+             Vertex   -00128.000000,-00128.000000,+00032.000000
+             Vertex   -00128.000000,-00128.000000,-00032.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Texture=AngrealEarthTremorPickupTex Link=4
+             Origin   +00128.000000,+00128.000000,-00032.000000
+             Normal   +00001.000000,+00000.000000,+00000.000000
+             TextureU +00000.000000,-00001.000000,+00000.000000
+             TextureV +00000.000000,+00000.000000,-00001.000000
+             Vertex   +00128.000000,+00128.000000,-00032.000000
+             Vertex   +00128.000000,+00128.000000,+00032.000000
+             Vertex   +00128.000000,-00128.000000,+00032.000000
+             Vertex   +00128.000000,-00128.000000,-00032.000000
+          End Polygon
+          Begin Polygon Item=OUTSIDE Texture=AngrealEarthTremorPickupTex Link=5
+             Origin   -00128.000000,-00128.000000,-00032.000000
+             Normal   -00001.000000,+00000.000000,+00000.000000
+             TextureU +00000.000000,+00001.000000,+00000.000000
+             TextureV +00000.000000,+00000.000000,-00001.000000
+             Vertex   -00128.000000,-00128.000000,-00032.000000
+             Vertex   -00128.000000,-00128.000000,+00032.000000
+             Vertex   -00128.000000,+00128.000000,+00032.000000
+             Vertex   -00128.000000,+00128.000000,-00032.000000
+          End Polygon
+       End PolyList
+    End Brush
+    Brush=Model'MyLevel.Model3'
+    Name=Brush2
+End Actor
+Begin Actor Class=Light Name=Light0
+    Level=LevelInfo'MyLevel.LevelInfo0'
+    Tag=Light
+    Region=(Zone=LevelInfo'MyLevel.LevelInfo0',iLeaf=2,ZoneNumber=63)
+    Location=(X=-35.938873,Y=-1.024963,Z=103.901680)
+    OldLocation=(X=-35.938873,Y=-1.024963,Z=103.901680)
+    Name=Light0
+End Actor
+Begin Actor Class=PlayerStart Name=PlayerStart0
+    Level=LevelInfo'MyLevel.LevelInfo0'
+    Tag=PlayerStart
+    Region=(Zone=LevelInfo'MyLevel.LevelInfo0',iLeaf=2,ZoneNumber=63)
+    Location=(X=71.954971,Y=127.779022,Z=-0.308431)
+    OldLocation=(X=71.954971,Y=175.362732,Z=-23.900215)
+    Name=PlayerStart0
+End Actor
+Begin Actor Class=Light Name=Light1
+    Level=LevelInfo'MyLevel.LevelInfo0'
+    Tag=Light
+    Region=(Zone=LevelInfo'MyLevel.LevelInfo0',iLeaf=4,ZoneNumber=63)
+    Location=(X=487.899994,Y=456.126465,Z=90.793221)
+    OldLocation=(X=487.899994,Y=456.126465,Z=90.793221)
+    Name=Light1
+End Actor
+Begin Actor Class=Light Name=Light2
+    Level=LevelInfo'MyLevel.LevelInfo0'
+    Tag=Light
+    Region=(Zone=LevelInfo'MyLevel.LevelInfo0',iLeaf=3,ZoneNumber=63)
+    Location=(X=-487.899994,Y=-444.138977,Z=80.150131)
+    OldLocation=(X=-487.899994,Y=-444.138977,Z=80.150131)
+    Name=Light2
+End Actor
+End Map

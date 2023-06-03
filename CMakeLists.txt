@@ -1,41 +1,17 @@
-cmake_minimum_required(VERSION 2.8.6)
-PROJECT(T3D2MAP)
+cmake_minimum_required(VERSION 3.15)
+project(t3d2map CXX)
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_BUILD_TYPE debug)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -g -O0")
 
-# by default only QtCore and QtGui modules are enabled
-# other modules must be enabled like this:
-SET(QT_USE_QTTEST TRUE)
-SET(QT_USE_QTOPENGL TRUE)
+# Qt5 component for basic viewer
+# find_package(CGAL REQUIRED COMPONENTS Qt5)
+find_package(CGAL REQUIRED)
 
-find_package(Qt4 REQUIRED)
-include(${QT_USE_FILE})
+add_definitions(-DCGAL_USE_BASIC_VIEWER)
 
-#
-# Depends on OpenGL
-#
-
-FIND_PACKAGE(OpenGL)
-
-#
-# Depends on VTK
-#
-
-find_package(VTK 5.10 REQUIRED)
-include(${VTK_USE_FILE})
-
-#
-# Depends on CGAL
-#
-
-find_package(CGAL REQUIRED QUIET COMPONENTS Core )
-include(${CGAL_USE_FILE})
-
-#
-# Sub-Projects
-#
-
-add_subdirectory(src)
-
-
-
+add_executable(${PROJECT_NAME} src/main.cpp)
+# target_link_libraries(${PROJECT_NAME} CGAL::CGAL CGAL::CGAL_Qt5)
+target_link_libraries(${PROJECT_NAME} CGAL::CGAL)

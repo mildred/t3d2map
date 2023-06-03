@@ -8,6 +8,23 @@ The issue with this conversion is that :
 - map files are composed of convex only brushes
 - t3d represents a CSG tree buth substracts and adds
 
+## New C++ build
+
+Conan build does not work because of conan v2, until it works, ensure CGAL is
+installed system-wide
+
+    conan profile detect --force
+    conan install . --output-folder=build --build=missing
+
+Build with CMake:
+
+    cmake .
+    make
+
+Use:
+
+    ./t3d2map ./examples/test.t3d
+
 ## CGAL algorithm
 
 Note: I believe there is no way to have face properties in a Nef_Polyhedra. Given this limitation there are two options:
@@ -26,7 +43,7 @@ Note: I believe there is no way to have face properties in a Nef_Polyhedra. Give
    - assign the rest of faces with null properties
    - if a face is split in a non contiguous manner, the non contiguous parts will not receive face properties. Solution: face properties should be indexed by their normal and their distance from the origin. Because of floating point errors, it is possible that generated faces are not exactly coplanar. Comparaison must be performed with some epsilon, and probably hash based stucture is not going to fit.
    - this is possibly expansive
-- Use custom algorithm for convex decomposition and perform everything with the Surface_mesh objects.
+- Use custom algorithm for convex decomposition and perform everything with the Surface_mesh objects. Use clip https://doc.cgal.org/latest/Polygon_mesh_processing/index.html#title21
 
 General algorithm:
 
