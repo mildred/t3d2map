@@ -13,6 +13,16 @@ The issue with this conversion is that :
 Note: I believe there is no way to have face properties in a Nef_Polyhedra. Given this limitation there are two options:
 
 - find a way to reconstruct the mapping of output face properties from the original input mesh face without keeping a track of it during boolean operation or decomposition. Pro: use the Nef_Polyhedra boolean algorithms that seems more powerful than mesh algorithms
+   - store face properties (texture and all vertices) indexed by each of their vertices
+   - in the output mesh, for each triangular face
+       - get all the face properties for all their 3 vertices. Do not keep duplicate face properties
+       - for each face property, check if the current face is a subset of the original face
+       - assign the face property to the face
+       - assign the face properties to the face vertices that did not reference it
+   - keep doing the previous iteration step until no more faces are being assigned
+   - assign the rest of faces with null properties
+   - if a face is split in a non contiguous manner, the non contiguous parts will not receive face properties. Solution: face properties should be indexed by their normal and their distance from the origin.
+   - this is possibly expansive
 - Use custom algorithm for convex decomposition and perform everything with the Surface_mesh objects.
 
 General algorithm:
