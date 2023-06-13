@@ -6,14 +6,17 @@
 #include <boost/algorithm/string.hpp>
 
 #include <CGAL/Simple_cartesian.h>
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Surface_mesh.h>
 #include <CGAL/Nef_polyhedron_3.h>
+#include <CGAL/Polygon_mesh_processing/triangulate_hole.h>
 #include <CGAL/Polygon_mesh_processing/triangulate_faces.h>
 #include <CGAL/Polygon_mesh_processing/corefinement.h>
 #include <CGAL/Polygon_mesh_processing/transform.h>
 #include <CGAL/Polygon_mesh_processing/stitch_borders.h>
 #include <CGAL/Polygon_mesh_processing/repair.h>
 #include <CGAL/Polygon_mesh_processing/clip.h>
+#include <CGAL/Polygon_mesh_processing/orientation.h>
 #include <CGAL/convex_decomposition_3.h>
 #include <CGAL/Aff_transformation_3.h>
 #include <CGAL/boost/graph/IO/OBJ.h>
@@ -26,7 +29,9 @@
 
 #include "backtrace.hpp"
 
-using Kernel = CGAL::Simple_cartesian<double>;
+// using Kernel = Simple_cartesian<double>
+// using Kernel = CGAL::Exact_predicates_inexact_constructions_kernel;
+using Kernel = CGAL::Exact_predicates_exact_constructions_kernel;
 using K = Kernel;
 
 using Nef = CGAL::Nef_polyhedron_3<Kernel>;
@@ -316,12 +321,14 @@ struct Map {
     return true;
   }
 
-  bool clip_mesh(Mesh &current, std::list<Mesh> &queue, std::list<Mesh> &res, bool use_clip = false) {
+  bool clip_mesh(Mesh &current, std::list<Mesh> &queue, std::list<Mesh> &res) {
     using namespace CGAL::Polygon_mesh_processing;
     using namespace CGAL::parameters;
     using namespace CGAL;
     using Vector_3 = Kernel::Vector_3;
     using Plane_3 = Kernel::Plane_3;
+
+    const bool debug = false;
 
     if (!is_triangle_mesh(current)) {
       cerr << "Mesh is not triangulated" << endl;
@@ -331,19 +338,27 @@ struct Map {
       cerr << "Mesh is not valid polygon" << endl;
       return false;
     }
+    if (does_self_intersect(current)) {
+      cerr << "Mesh self intersects!" << endl;
+      return false;
+    }
+    if (!does_bound_a_volume(current)) {
+      cerr << "Mesh does not bound a volume!" << endl;
+      return false;
+    }
 
     bool convex = true;
 
     // iterate over all faces
     for(edge_descriptor edge : current.edges()) {
-      cerr << "get first half-edge" << endl;
+      if (debug) cerr << "get first half-edge" << endl;
       // get the first half edge and 3 vertices around
       auto edge1 = current.halfedge(edge);
       auto v1p = current.target(current.prev(edge1));
       auto v1t = current.target(edge1);
       auto v1n = current.target(current.next(edge1));
 
-      cerr << "get second half-edge" << endl;
+      if (debug) cerr << "get second half-edge" << endl;
       // get the second half edge and 3 vertices around
       auto edge2 = current.opposite(edge1);
       auto v2p = current.target(current.prev(edge2));
@@ -354,47 +369,81 @@ struct Map {
       // these points do not belongs to the edge
       auto p1 = current.point((v1p == v2t) ? v1n : v1p);
       auto p2 = current.point((v2p == v1t) ? v2n : v2p);
-      cerr << "get opposite points (" << p1 << "), (" << p2 << ")" << endl;
+      if (debug) cerr << "get opposite points (" << p1 << "), (" << p2 << ")" << endl;
 
       // compute the normal for the reference face
       auto norm1 = compute_face_normal(current.face(edge1), current);
-      cerr << "get face normal " << norm1 << endl;
+      if (debug) cerr << "get face normal " << norm1 << endl;
 
       // if the scalar product is positive, the angle is concave
       // <https://stackoverflow.com/a/40019587>
       auto product = scalar_product(Vector_3(p1, p2), norm1);
-      cerr << "dot product: " << product << endl;
+      if (debug) cerr << "dot product: " << product << endl;
       if( product > 0 ) {
         Plane_3 clip_plane(p1, norm1);
         Plane_3 rclip_plane(p1, -norm1);
 
         convex = false;
-        Mesh complement(current);
-        if (use_clip) {
-          // TODO: does not work
-          // <https://github.com/CGAL/cgal/issues/7493>
+        Mesh complement;
+
+        const bool custom_clip = false;
+        const bool use_clip = false;
+        if (use_clip && custom_clip) {
+          cerr << "TODO: manual clip" << endl;
+          cerr << "TODO: hole filling" << endl;
+          // for all holes created:
+          // triangulate_hole(mesh, an_edge_of_the_hole)
+          return false;
+        } else if (use_clip) {
+          complement = current;
           cerr << "clip current mesh" << endl;
           clip(current, clip_plane, clip_volume(true));
+          if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split.obj", current);
           cerr << "clip complement mesh" << endl;
           clip(complement, rclip_plane, clip_volume(true));
+          if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split_complement.obj", complement);
+
+          // Maybe try with clip_volume(false) and manually fill holes
+          // (does not work)
+          // triangulate_hole(current, )
+          // triangulate_hole(complement)
         } else {
           // Alternative to clipping, use CSG difference instead of infinite
           // plane clipping which seems to have some issues.
           Mesh halfspace;
           Mesh current_res;
           if (!get_clipped_bounding_box(halfspace, clip_plane)) return false;
+          if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split_tool.obj", halfspace);
           cerr << "clip/intersection current mesh" << endl;
           //corefine_and_compute_difference(current, halfspace, current_res);
           corefine_and_compute_intersection(current, halfspace, current_res);
-          current = current_res;
+          if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split.obj", current_res);
           if (!get_clipped_bounding_box(halfspace, clip_plane)) return false;
           cerr << "clip/intersection complement mesh" << endl;
-          //corefine_and_compute_difference(current, halfspace, complement);
-          corefine_and_compute_intersection(current, halfspace, complement);
+          corefine_and_compute_difference(current, halfspace, complement);
+          //corefine_and_compute_intersection(current, halfspace, complement);
+          if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split_complement.obj", complement);
+          current = current_res;
         }
         cerr << "push back 2 meshes" << endl;
         queue.push_back(complement);
         queue.push_back(current);
+        if (does_self_intersect(current)) {
+          cerr << "Mesh (dbg_last_split.obj) self intersects!" << endl;
+          return false;
+        }
+        if (!does_bound_a_volume(current)) {
+          cerr << "Mesh (dbg_last_split.obj) does not bound a volume!" << endl;
+          return false;
+        }
+        if (does_self_intersect(complement)) {
+          cerr << "Mesh (dbg_last_split_complement.obj) self intersects!" << endl;
+          return false;
+        }
+        if (!does_bound_a_volume(complement)) {
+          cerr << "Mesh (dbg_last_split_complement.obj) does not bound a volume!" << endl;
+          return false;
+        }
         // If the face iterator can work with a mesh changing, perhaps we can
         // continue to iterate over it but in the meantime put both meshes for
         // reprocess
@@ -411,6 +460,8 @@ struct Map {
   }
 
   bool convex_decomposition(Mesh original, std::list<Mesh> &res) {
+    using namespace CGAL::Polygon_mesh_processing;
+
     std::list<Mesh> queue;
     queue.push_back(original);
     int step = 0;
@@ -418,6 +469,7 @@ struct Map {
       cerr << "Clip #" << step << " mesh " << queue.size() << " / " << (queue.size() + res.size()) << endl;
       Mesh working = queue.front();
       queue.pop_front();
+      orient_to_bound_a_volume(working);
       if (debug_meshes) CGAL::IO::write_OBJ(format("dbg_convex_step_{}.obj", step), working);
       if(!clip_mesh(working, queue, res)) return false;
       step++;
@@ -475,7 +527,7 @@ struct Map {
       int i = 0;
       ofstream fres("dbg_result.obj");
       for(Mesh m : convex_meshes) {
-        CGAL::IO::write_OBJ(format("dbg_result_{}.obj", i++), result);
+        CGAL::IO::write_OBJ(format("dbg_result_{}.obj", i++), m);
         CGAL::IO::write_OBJ(fres, result);
       }
     }
