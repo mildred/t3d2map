@@ -25,6 +25,10 @@ Use:
 
     ./t3d2map ./examples/test.t3d
 
+Or:
+
+    make && rm -f dbg_*.obj && ./t3d2map --debug-mesh ./examples/test.t3d
+
 Roadmap:
 
 - [x] Parse t3d files
@@ -33,10 +37,26 @@ Roadmap:
 - [ ] Implement actor rotation
 - [ ] Implement actor scaling
 - [x] Generate CSG concave mesh
-- [ ] Decompose in convex meshes
-- [ ] Generate .map file
-- [ ] Parse texture UV mapping
+- [x] Decompose in convex meshes
+- [x] Generate .map file
+    - [x] Handle rounding errors producing vectors with all 3 coordinates at 0
+- [x] Parse texture UV mapping
+- [ ] Generate a list of texture mappings and associate each face with a mapping
+    - texture name
+    - U vector
+    - V vector
+    - Texture origin (t3d.origin + uvector * (upan or 0) + vvector * (vpan or 0))
+- [ ] Handle two coplanar faces in the same resulting mesh having different
+  texture
+    - coplanar polygons on a mesh must all share the same texture mapping, else
+      those polygons must be split in separate meshes.
 - [ ] Generate UV mapping to .map files
+    - transform the U and V vectors to unit vectors and extract the scale factor
+      for "X scale" and "Y scale"
+    - set rotation to 0 (embedded within the U, V vectors)
+    - transform the texture origin to U and V offsets discarding the component
+      orthogonal to U and V as this is not necessary
+    - try multiple texture and look to see if visually it matches
 
 ## CGAL algorithm
 
@@ -79,7 +99,11 @@ General algorithm:
 .map file format
 
 - https://book.leveldesignbook.com/appendix/resources/formats/map
+- https://book.leveldesignbook.com/appendix/resources/formats/map#texturing-uvs
 - https://quakewiki.org/wiki/Quake_Map_Format
+- https://3707026871-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LtVT8pJjInrrHVCovzy%2Fuploads%2FEukkFYJLwfafFXUMpsI2%2FMAPFiles_2001_StefanHajnoczi.pdf?alt=media&token=51471685-bf69-42ae-a015-a474c0b95165
+- https://developer.valvesoftware.com/wiki/UV_map
+- https://www.gamers.org/dEngine/quake/QDP/QPrimer.html
 
 T3D format:
 
@@ -101,3 +125,36 @@ Boolean operations:
 tools:
 
 - https://github.com/PyMesh/PyMesh
+
+## UV Mapping
+
+T3D format defines UV mapping for each face with 2 vectors (U, V) and 2 numbers
+(UPan, VPan). Both U and V must be orthogonal to the face normal vector (hence
+be "coplanar" with the face). The 2D point defined by U and V represents the
+origin on the 2D texture coordinates (pixels). U=2 means that the texture starts
+at the 3rd pixel on the left.
+
+The texture is applied to the face such that on 3D space the U vector represents
+the horizontal axis of the  texture image, and the V vector represents the
+vertical axis. For a texture not to be deformed the U and V vector must be
+orthogonal. The length of the vectors represents the length of the texture. A
+unit vector represents the full width or height of the texture.
+
+The .map format represents convex meshes with a set of intersecting planes, each
+plane represented by 3 points (not necessarily on the surface mesh) organized so
+the normal vector points out. Original texture information was subject to
+incoherences so Valve updated the format to remove all ambiguity.
+
+Quake standard format for UV mapping represents for each face after the texture
+name real numbers for : X offset, Y offset, rotation, X scale, Y scale. Texture
+are applied naturally on faces that are orthogonal to the X, Y or Z axis. If a
+face is not orthogonal to the X, Y or Z axis, the texture will be stretched in
+some way.
+
+Valve texture format represents UV mapping after the texture name with:
+
+- U 3d vector and U offset (from world origin 0,0,0 ?)
+- V 3d vector and V offset (from world origin 0,0,0 ?)
+- rotation
+- X scale
+- Y scale

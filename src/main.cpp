@@ -2,6 +2,9 @@
 #include <iostream>
 #include <regex>
 #include <format>
+#include <map>
+#include <cmath>
+#include <algorithm>
 
 #include <boost/algorithm/string.hpp>
 
@@ -9,6 +12,7 @@
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Surface_mesh.h>
 #include <CGAL/Nef_polyhedron_3.h>
+#include <CGAL/Polygon_mesh_processing/connected_components.h>
 #include <CGAL/Polygon_mesh_processing/triangulate_hole.h>
 #include <CGAL/Polygon_mesh_processing/triangulate_faces.h>
 #include <CGAL/Polygon_mesh_processing/corefinement.h>
@@ -17,6 +21,7 @@
 #include <CGAL/Polygon_mesh_processing/repair.h>
 #include <CGAL/Polygon_mesh_processing/clip.h>
 #include <CGAL/Polygon_mesh_processing/orientation.h>
+#include <CGAL/property_map.h>
 #include <CGAL/convex_decomposition_3.h>
 #include <CGAL/Aff_transformation_3.h>
 #include <CGAL/boost/graph/IO/OBJ.h>
@@ -32,6 +37,7 @@
 // using Kernel = Simple_cartesian<double>
 // using Kernel = CGAL::Exact_predicates_inexact_constructions_kernel;
 using Kernel = CGAL::Exact_predicates_exact_constructions_kernel;
+// using Kernel = CGAL::Exact_predicates_exact_constructions_with_sqrt_kernel;
 using K = Kernel;
 
 using Nef = CGAL::Nef_polyhedron_3<Kernel>;
@@ -56,7 +62,10 @@ bool parse_line(ifstream &f, std::string &line, bool trim_left = true) {
   return true;
 }
 
+std::regex reg_keyvals("^\\s*(Begin\\s+\\S+\\s+)?((\\S+)=(\\S+)\\s*)*$");
 std::regex reg_polygon_vertex("^Vertex\\s+([^,]+),([^,]+),([^,]+)$");
+std::regex reg_polygon_vector("^(Vertex|Origin|TextureU|TextureV)\\s+([^,]+),([^,]+),([^,]+)$");
+std::regex reg_polygon_pan("^Pan\\s+U=(\\S+)\\s+V=(\\S+)$");
 std::regex reg_polygon_attr("^(\\S+)\\s+([^,]+),([^,]+),([^,]+)$");
 std::regex reg_keyval("^([^=]+)=(.*)$");
 std::regex reg_location("^Location=\\((.*)\\)$");
@@ -97,6 +106,19 @@ struct Transform {
   }
 };
 
+struct UVMap {
+  std::string texture;
+  K::Point_3 origin;
+  K::Vector_3 u;
+  K::Vector_3 v;
+  double upan, vpan;
+
+  UVMap() : upan(0), vpan(0) {
+  }
+};
+
+using UVPropertyMap = Mesh::Property_map<face_descriptor,UVMap>; 
+
 void parse_xyz_vector(std::string vector, double &x, double &y, double &z) {
   std::smatch m;
 
@@ -116,6 +138,7 @@ struct Map {
 
   std::vector<Mesh> meshes;
   std::list<CsgNode> csg_tree;
+  std::list<Mesh> worldspan;
 
   double xmin, xmax, ymin, ymax, zmin, zmax;
 
@@ -140,14 +163,35 @@ struct Map {
     if (z > zmax) zmax = z;
   }
 
-  bool parse_polygon(ifstream &f, std::string actor_line, Mesh &mesh) {
+  bool parse_keyval(std::string line, std::map<std::string,std::string> res) {
+    std::smatch m;
+    if (!regex_match(line, m, reg_keyvals)) return false;
+    for(int i = 2; i+2 < m.size(); i+=3) {
+      res[m[i+1]] = m[i+2];
+      cerr << "keyval " << m[i+1] << " : " << m[i+2] << endl;
+    }
+    return true;
+  }
+
+  bool parse_polygon(ifstream &f, std::string polygon_line, Mesh &mesh, UVPropertyMap &uvmap) {
+    std::map<std::string, std::string> keyval;
+    UVMap texture_map;
     std::list<vertex_descriptor> vertices;
     std::smatch m;
     std::string line;
+
+    if (!parse_keyval(polygon_line, keyval)) {
+      cerr << "Failed to parse polygon line key-values: " << polygon_line << endl;
+      return false;
+    }
+
+    texture_map.texture = keyval["Texture"];
+
     while (parse_line(f, line)) {
       if (line.starts_with("End Polygon")) {
-        mesh.add_face(vertices);
+        const face_descriptor f = mesh.add_face(vertices);
         // TODO: flip normal if needed
+        uvmap[f] = texture_map;
         return true;
       } else if (regex_match(line, m, reg_polygon_vertex)) {
         double x = stod(m[1]);
@@ -155,6 +199,24 @@ struct Map {
         double z = stod(m[3]);
         compute_bounds(x, y, z);
         vertices.push_back(mesh.add_vertex(K::Point_3(x, y, z)));
+      } else if (regex_match(line, m, reg_polygon_vector)) {
+        std::string kind = m[1];
+        double x = stod(m[2]);
+        double y = stod(m[3]);
+        double z = stod(m[4]);
+        if (kind == "Vertex") {
+          compute_bounds(x, y, z);
+          vertices.push_back(mesh.add_vertex(K::Point_3(x, y, z)));
+        } else if (kind == "Origin") {
+          texture_map.origin = K::Point_3(x, y, z);
+        } else if (kind == "TextureU") {
+          texture_map.u = K::Vector_3(x, y, z);
+        } else if (kind == "TextureV") {
+          texture_map.v = K::Vector_3(x, y, z);
+        }
+      } else if (regex_match(line, m, reg_polygon_pan)) {
+        texture_map.upan = stod(m[1]);
+        texture_map.vpan = stod(m[2]);
       } else if (regex_match(line, m, reg_polygon_attr)) {
         // cerr << "Polygon line " << m[1] << ": " << m[2] << m[3] << m[4] << endl;
       } else {
@@ -165,13 +227,13 @@ struct Map {
     return false;
   }
 
-  bool parse_polylist(ifstream &f, std::string actor_line, Mesh &mesh) {
+  bool parse_polylist(ifstream &f, std::string actor_line, Mesh &mesh, UVPropertyMap &uvmap) {
     std::string line;
     while (parse_line(f, line)) {
       if (line.starts_with("End PolyList")) {
         return true;
       } else if (line.starts_with("Begin Polygon")) {
-        if (!parse_polygon(f, line, mesh)) return false;
+        if (!parse_polygon(f, line, mesh, uvmap)) return false;
       } else {
         cerr << "PolyList line: " << line << endl;
       }
@@ -184,6 +246,13 @@ struct Map {
 
     Mesh mesh;
     std::string line;
+
+    bool created;
+    UVPropertyMap uvmap;
+
+    // https://doc.cgal.org/latest/Surface_mesh/index.html#title7
+    boost::tie(uvmap, created) = mesh.add_property_map<face_descriptor,UVMap>("f:uv", UVMap());
+
     while (parse_line(f, line)) {
       if (line.starts_with("End Brush")) {
         stitch_borders(mesh);
@@ -195,7 +264,7 @@ struct Map {
         csg_tree.push_back(CsgNode(index, csg_oper));
         return true;
       } else if (line.starts_with("Begin PolyList")) {
-        if (!parse_polylist(f, line, mesh)) return false;
+        if (!parse_polylist(f, line, mesh, uvmap)) return false;
       } else {
         cerr << "Brush line: " << line << endl;
       }
@@ -453,7 +522,8 @@ struct Map {
 
     if (convex) {
       // No concave surface got split, the mesh is convex
-      res.push_back(current);
+      // res.push_back(current);
+      split_connected_components(current, res);
     }
 
     return true;
@@ -532,6 +602,8 @@ struct Map {
       }
     }
 
+    this->worldspan = convex_meshes;
+
     return true;
   }
 
@@ -593,11 +665,161 @@ struct Map {
     return true;
   }
 
+#if 0
+  Kernel::Vector_3 unit_vector(Kernel::Vector_3 vec) {
+    Kernel::Vector_3 v(vec);
+    // Approx sqrt, no need to get real unit vectors. We just need to get
+    // vectors with non zero coordinates when rounded
+    // double ulen = std::sqrt(to_double(v.squared_length()));
+    auto len = approximate_sqrt(v.squared_length());
+    // For very small units, avoid divisions by 0 and increase vector size
+    // before normalizing it
+    while (std::abs(to_double(len)) < 1e-6) {
+      v = v * 1e9;
+      len = approximate_sqrt(v.squared_length());
+    }
+    return v / len;
+  }
+
+#endif
+
+  Kernel::Vector_3 unit_vector(Kernel::Vector_3 vec) {
+    Kernel::Vector_3 v(vec);
+    while (v.squared_length() < 1e-9) v = v * 1e9;
+
+    auto len = approximate_sqrt(v.squared_length());
+    return v / len;
+  }
+
+  bool generate_brush(ostream &map, int idx, Mesh &m) {
+    using Plane_3 = Kernel::Plane_3;
+    using Point_3 = Kernel::Point_3;
+    using Vector_3 = Kernel::Vector_3;
+
+    bool uvfound;
+    UVPropertyMap uvmap;
+    boost::tie(uvmap, uvfound) = m.property_map<face_descriptor,UVMap>("f:uv");
+
+    map
+      << "  // brush " << idx << " uvmap: " << uvfound << endl
+      << "  {" << endl;
+
+#if 0
+    Nef poly(m);
+    for(Plane_3 plane : poly.planes()){
+      UVMap uv;
+      uv.texture = "__TB_empty";
+      Point_3 p0 = plane.point();
+      Point_3 p1 = p1 + plane.base1();
+      Point_3 p2 = p1 + plane.base2();
+      map
+        << "    "
+        << "(" << p0.x() << " " << p0.y() << " " << p0.z() << ") "
+        << "(" << p1.x() << " " << p1.y() << " " << p1.z() << ") "
+        << "(" << p2.x() << " " << p2.y() << " " << p2.z() << ") "
+        << uv.texture
+        << endl;
+    }
+#endif
+
+    std::list<Plane_3> planes;
+
+    for(face_descriptor f : m.faces()) {
+      // TODO: if face is too small in one direction, it can be imprecise and
+      // produce very small vectors that are hard to reason with. In that case
+      // there might be a better face on the same plane with better properties.
+      auto edge = m.halfedge(f);
+      Point_3 v0 = m.point(m.target(m.prev(edge)));
+      Point_3 v1 = m.point(m.target(edge));
+      Point_3 v2 = m.point(m.target(m.next(edge)));
+      Plane_3 plane(v0, v1, v2);
+      Vector_3 normal = plane.orthogonal_vector();
+      Vector_3 b1 = unit_vector(plane.base1());
+      Vector_3 b2 = unit_vector(plane.base2());
+
+      Point_3 p0 = v0;
+      Point_3 p1 = p0 + b1;
+      Point_3 p2 = p0 + b2;
+
+      UVMap uv;
+      if (uvfound) uv = uvmap[f];
+      if (uv.texture == "") {
+        uv.texture = "__TB_empty";
+        uv.u = b1;
+        uv.v = b2;
+      }
+
+      if (std::find(planes.begin(), planes.end(), plane) != planes.end()) continue;
+      planes.push_back(plane);
+
+      if (uv.u * normal != 0) {
+        cerr << "U vector is not included in face: u.n = " << (uv.u * normal) << endl;
+        return false;
+      }
+
+      if (uv.v * normal != 0) {
+        cerr << "V vector is not included in face: v.n = " << (uv.v * normal) << endl;
+        return false;
+      }
+
+      map << "    ";
+      // if (plane.is_degenerate()) map << "// DEGENERATE: ";
+      map
+        << "( " << p2.x() << " " << p2.y() << " " << p2.z() << " ) "
+        << "( " << p1.x() << " " << p1.y() << " " << p1.z() << " ) "
+        << "( " << p0.x() << " " << p0.y() << " " << p0.z() << " ) "
+        << uv.texture << " "
+        << "[ "
+          << uv.u.x() << " " << uv.u.y() << " " << uv.u.z() << " "
+          << uv.upan // TODO: pan from the world origin
+        << " ] "
+        << "[ "
+          << uv.v.x() << " " << uv.v.y() << " " << uv.v.z() << " "
+          << uv.vpan // TODO: pan from the world origin
+        << " ] "
+        << 0 << " " // rotation is 0, we have U and V for that
+        << 1 << " " << 1 << " " // u and v scale  (vector contains the scale)
+        << endl;
+    }
+
+    map << "  }" << endl;
+    return true;
+  }
+
+  bool generate_brushes(ostream &map) {
+    int idx = 0;
+    for(Mesh m : this->worldspan) {
+      if (!generate_brush(map, idx++, m)) {
+        map << "// ERROR: stop export" << endl;
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool generate_map_file(ostream &map) {
+    bool res = true;
+    map
+      << fixed
+      << "// Game: Generic" << endl
+      << "// Format: Valve" << endl
+      << "// Generated: t3d2map" << endl
+      << "{" << endl
+      << "  \"mapversion\" \"220\"" << endl
+      << "  \"classname\" \"worldspan\"" << endl;
+    res = generate_brushes(map);
+    map
+      << "}" << endl;
+    return res;
+  }
+
 };
 
 int main(int argc, char **argv) {
   install_backtrace();
 
+  ofstream output_file;
+  ostream *mapfile = &cout;
   bool mesh = true;
   bool debug_meshes = false;
   int i = 1;
@@ -613,6 +835,11 @@ int main(int argc, char **argv) {
     } else if (arg == "--cgal-debug") {
       debugthread = 0;
 #endif
+    } else if (i+1 < argc && (arg == "-o" || arg == "--output")) {
+      arg = argv[++i];
+      output_file = ofstream(arg);
+      ostream *out = &output_file;
+      mapfile = out;
     } else {
       break;
     }
@@ -624,7 +851,8 @@ int main(int argc, char **argv) {
       << endl
       << "Options:" << endl
       << "    --nef, --mesh   Choose method to compute the results, default is nef." << endl
-      << "    --debug-mesh    Generate in the durrent directoruy the debug meshes" << endl;
+      << "    --debug-mesh    Generate in the durrent directoruy the debug meshes" << endl
+      << "    -o OUTPUT       Generate map file to OUTPUT (or stdout if not defined)" << endl;
     return 1;
   }
 
@@ -641,6 +869,7 @@ int main(int argc, char **argv) {
   } else {
     if (!map.construct_csg_nef(false)) return 1;
   }
+  if (!map.generate_map_file(*mapfile)) return 1;
   return 0;
 }
 
