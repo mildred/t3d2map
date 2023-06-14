@@ -46,10 +46,25 @@ Roadmap:
     - U vector
     - V vector
     - Texture origin (t3d.origin + uvector * (upan or 0) + vvector * (vpan or 0))
+- [ ] Store globally the UV maps in a hashmap
+    - the hashmap key is the hash of the plane
+    - to construct the hash of a plane, normalize the a, b, c, d coefficients
+      without using sqrt:
+        - multiply a, b, c, d by 1/a
+        - if a=0, multiply a, b, c, d by 1/b
+        - ...
+    - the hash value should be a list, each list item should reference a polygon
+      and its uvmap
 - [ ] Handle two coplanar faces in the same resulting mesh having different
   texture
     - coplanar polygons on a mesh must all share the same texture mapping, else
       those polygons must be split in separate meshes.
+- [ ] After CSG and convex decomposition, associate for each face the UVMap
+    - for each face, construct the plane
+    - normalize the plane coefficients a, b, c, d and fetch the plane list in
+      the global hashmap
+    - iterate over all polygons and stop at the first polygon that includes all
+      of the current face, take its uvmap.
 - [ ] Generate UV mapping to .map files
     - transform the U and V vectors to unit vectors and extract the scale factor
       for "X scale" and "Y scale"

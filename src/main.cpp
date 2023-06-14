@@ -8,6 +8,7 @@
 
 #include <boost/algorithm/string.hpp>
 
+#include <CGAL/Named_function_parameters.h>
 #include <CGAL/Simple_cartesian.h>
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Surface_mesh.h>
@@ -46,6 +47,7 @@ typedef CGAL::Surface_mesh<K::Point_3> Mesh;
 typedef Mesh::Vertex_index vertex_descriptor;
 typedef Mesh::Face_index face_descriptor;
 typedef Mesh::Edge_index edge_descriptor;
+typedef Mesh::Halfedge_index halfedge_descriptor;
 
 typedef enum {
   CSG_None,
@@ -133,6 +135,116 @@ void parse_xyz_vector(std::string vector, double &x, double &y, double &z) {
     vector = m.suffix();
   }
 }
+
+class FaceUVMapCopyVisitor {
+  using Triangle_mesh = Mesh;
+  using Boolean_operation_type = CGAL::Polygon_mesh_processing::Corefinement::Boolean_operation_type;
+  face_descriptor last_f_split;
+
+  UVPropertyMap uvmap;
+  bool has_uvmap;
+
+  public:
+
+  FaceUVMapCopyVisitor(Triangle_mesh &mesh) {
+    boost::tie(uvmap, has_uvmap) = mesh.property_map<face_descriptor,UVMap>("f:uv");
+  }
+
+  FaceUVMapCopyVisitor() : has_uvmap(false) {
+  }
+
+  void before_subface_creations (face_descriptor f_split, const Triangle_mesh &tm) {
+    last_f_split = f_split;
+  }
+
+  void before_subface_creations (face_descriptor f_split) {
+    last_f_split = f_split;
+  }
+
+  void after_subface_created (face_descriptor f_new, const Triangle_mesh &tm) {
+    bool found;
+    UVPropertyMap uvmap;
+    boost::tie(uvmap, found) = tm.property_map<face_descriptor,UVMap>("f:uv");
+    if (has_uvmap) {
+      // TODO
+      // uvmap[f_new] = uvmap[last_f_split];
+    }
+  }
+  void after_subface_created (face_descriptor f_new) {
+    if (has_uvmap) {
+      // TODO
+      // uvmap[f_new] = uvmap[last_f_split];
+    }
+  }
+
+  void after_face_copy (face_descriptor f_src, const Triangle_mesh &tm_src, face_descriptor f_tgt, const Triangle_mesh &tm_tgt) {
+    bool found, created;
+    UVPropertyMap uvmap1, uvmap2;
+    boost::tie(uvmap, has_uvmap) = tm_src.property_map<face_descriptor,UVMap>("f:uv");
+    boost::tie(uvmap2, created) = const_cast<Triangle_mesh&>(tm_tgt).add_property_map<face_descriptor,UVMap>("f:uv", UVMap());
+    if (found) {
+      // TODO
+      // uvmap2[f_tgt] = uvmap1[f_src];
+    }
+  }
+
+  // void before_subface_creations(face_descriptor f_split, const Triangle_mesh& tm){}
+  void after_subface_creations(){}
+  void before_subface_created(){}
+   void after_subface_creations(const Triangle_mesh& tm){}
+   void before_subface_created(const Triangle_mesh& tm){}
+  // void after_subface_created(face_descriptor f_new, const Triangle_mesh& tm){}
+
+  void before_edge_split(halfedge_descriptor h, const Triangle_mesh& tm){}
+  void edge_split(halfedge_descriptor hnew, const Triangle_mesh& tm){}
+  void after_edge_split(){}
+  void add_retriangulation_edge(halfedge_descriptor h, const Triangle_mesh& tm){}
+  void intersection_point_detected(std::size_t i_id,
+                                   int sdim,
+                                   halfedge_descriptor h_f,
+                                   halfedge_descriptor h_e,
+                                   const Triangle_mesh& tm_f,
+                                   const Triangle_mesh& tm_e,
+                                   bool is_target_coplanar,
+                                   bool is_source_coplanar){}
+  void new_vertex_added(std::size_t i_id, vertex_descriptor v, const Triangle_mesh& tm){}
+  void before_face_copy(face_descriptor f_src, const Triangle_mesh& tm_src, const Triangle_mesh& tm_tgt){}
+  // void after_face_copy(face_descriptor  f_src, const Triangle_mesh& tm_src,
+  //                      face_descriptor  f_tgt, const Triangle_mesh& tm_tgt){}
+  void before_edge_copy(halfedge_descriptor h_src, const Triangle_mesh& tm_src, const Triangle_mesh& tm_tgt){}
+  void after_edge_copy(halfedge_descriptor h_src, const Triangle_mesh& tm_src,
+                       halfedge_descriptor h_tgt, const Triangle_mesh& tm_tgt){}
+  void before_edge_duplicated(halfedge_descriptor h, const Triangle_mesh& tm){}
+  void after_edge_duplicated(halfedge_descriptor h_src,
+                             halfedge_descriptor h_new, const Triangle_mesh& tm){}
+  void intersection_edge_copy(halfedge_descriptor h_src1, const Triangle_mesh& tm_src1,
+                              halfedge_descriptor h_src2, const Triangle_mesh& tm_src2,
+                              halfedge_descriptor h_tgt,  const Triangle_mesh& tm_tgt){}
+  void before_vertex_copy(vertex_descriptor v_src, const Triangle_mesh& tm_src, const Triangle_mesh& tm_tgt){}
+  void after_vertex_copy(vertex_descriptor v_src, const Triangle_mesh& tm_src,
+                         vertex_descriptor v_tgt, const Triangle_mesh& tm_tgt){}
+  void start_filtering_intersections(){}
+  void progress_filtering_intersections(double d){}
+  void end_filtering_intersections(){}
+  void start_handling_intersection_of_coplanar_faces(std::size_t n){}
+  void intersection_of_coplanar_faces_step() const{}
+  void end_handling_intersection_of_coplanar_faces() const{}
+  void start_handling_edge_face_intersections(std::size_t n){}
+  void edge_face_intersections_step(){}
+  void end_handling_edge_face_intersections(){}
+  void start_triangulating_faces(std::size_t n){}
+  void triangulating_faces_step(){}
+  void end_triangulating_faces(){}
+  void start_building_output(){}
+  void end_building_output(){}
+  void filter_coplanar_edges(){}
+  void detect_patches(){}
+  void classify_patches(){}
+  void classify_intersection_free_patches(const Triangle_mesh& tm){}
+  void out_of_place_operation(Boolean_operation_type t){}
+  void in_place_operation(Boolean_operation_type t){}
+  void in_place_operations(Boolean_operation_type t1,Boolean_operation_type t2){}
+};
 
 struct Map {
 
@@ -479,18 +591,19 @@ struct Map {
         } else {
           // Alternative to clipping, use CSG difference instead of infinite
           // plane clipping which seems to have some issues.
+          FaceUVMapCopyVisitor vis(current);
           Mesh halfspace;
           Mesh current_res;
           if (!get_clipped_bounding_box(halfspace, clip_plane)) return false;
           if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split_tool.obj", halfspace);
           cerr << "clip/intersection current mesh" << endl;
-          //corefine_and_compute_difference(current, halfspace, current_res);
-          corefine_and_compute_intersection(current, halfspace, current_res);
+          // TODO: keep property_map
+          corefine_and_compute_intersection(current, halfspace, current_res, CGAL::parameters::visitor(vis));
           if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split.obj", current_res);
           if (!get_clipped_bounding_box(halfspace, clip_plane)) return false;
           cerr << "clip/intersection complement mesh" << endl;
-          corefine_and_compute_difference(current, halfspace, complement);
-          //corefine_and_compute_intersection(current, halfspace, complement);
+          // TODO: keep property_map
+          corefine_and_compute_difference(current, halfspace, complement, CGAL::parameters::visitor(vis));
           if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split_complement.obj", complement);
           current = current_res;
         }
@@ -539,7 +652,7 @@ struct Map {
       cerr << "Clip #" << step << " mesh " << queue.size() << " / " << (queue.size() + res.size()) << endl;
       Mesh working = queue.front();
       queue.pop_front();
-      orient_to_bound_a_volume(working);
+      orient_to_bound_a_volume(working); // TODO: ensure it keeps property map
       if (debug_meshes) CGAL::IO::write_OBJ(format("dbg_convex_step_{}.obj", step), working);
       if(!clip_mesh(working, queue, res)) return false;
       step++;
@@ -561,18 +674,21 @@ struct Map {
       Mesh step_res;
       Mesh step_brush = meshes[csg_node.index];
       std::string op = "noop";
-      if (!triangulate_faces(step_brush)) {
+      FaceUVMapCopyVisitor vis(step_brush);
+      if (!triangulate_faces(step_brush, CGAL::parameters::visitor(vis))) { // TODO: keep face property map
         cerr << "Cannot triangulate mesh " << csg_node.index << endl;
         return false;
       }
       switch (csg_node.oper) {
         case CSG_Add:
-          corefine_and_compute_union(result, step_brush, step_res);
+          // TODO: keep property_map
+          corefine_and_compute_union(result, step_brush, step_res, CGAL::parameters::visitor(vis));
           result = step_res;
           op = "csg-add";
           break;
         case CSG_Subtract:
-          corefine_and_compute_difference(result, step_brush, step_res);
+          // TODO: keep property_map
+          corefine_and_compute_difference(result, step_brush, step_res, CGAL::parameters::visitor(vis));
           result = step_res;
           op = "csg-sub";
           break;
