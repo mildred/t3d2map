@@ -8,6 +8,8 @@ The issue with this conversion is that :
 - map files are composed of convex only brushes
 - t3d represents a CSG tree buth substracts and adds
 
+![./screenshoot.png]
+
 ## New C++ build
 
 Conan build does not work because of conan v2, until it works, ensure CGAL is
@@ -27,7 +29,7 @@ Use:
 
 Or:
 
-    make && rm -f dbg_*.obj && ./t3d2map --debug-mesh ./examples/test.t3d
+    make && rm -f dbg_*.obj && ./t3d2map --debug-mesh --convert ../WoT-conversion/textures/CONVERSION --game WoT -o examples/test.map examples/test.t3d
 
 Roadmap:
 
@@ -38,33 +40,19 @@ Roadmap:
 - [ ] Implement actor scaling
 - [x] Generate CSG concave mesh
 - [x] Decompose in convex meshes
+- [x] Split disjoined meshes while keeping the uvmap
 - [x] Generate .map file
     - [x] Handle rounding errors producing vectors with all 3 coordinates at 0
 - [x] Parse texture UV mapping
-- [ ] Generate a list of texture mappings and associate each face with a mapping
+- [x] Generate a list of texture mappings and associate each face with a mapping
     - texture name
     - U vector
     - V vector
     - Texture origin (t3d.origin + uvector * (upan or 0) + vvector * (vpan or 0))
-- [ ] Store globally the UV maps in a hashmap
-    - the hashmap key is the hash of the plane
-    - to construct the hash of a plane, normalize the a, b, c, d coefficients
-      without using sqrt:
-        - multiply a, b, c, d by 1/a
-        - if a=0, multiply a, b, c, d by 1/b
-        - ...
-    - the hash value should be a list, each list item should reference a polygon
-      and its uvmap
 - [ ] Handle two coplanar faces in the same resulting mesh having different
   texture
     - coplanar polygons on a mesh must all share the same texture mapping, else
       those polygons must be split in separate meshes.
-- [ ] After CSG and convex decomposition, associate for each face the UVMap
-    - for each face, construct the plane
-    - normalize the plane coefficients a, b, c, d and fetch the plane list in
-      the global hashmap
-    - iterate over all polygons and stop at the first polygon that includes all
-      of the current face, take its uvmap.
 - [ ] Generate UV mapping to .map files
     - transform the U and V vectors to unit vectors and extract the scale factor
       for "X scale" and "Y scale"

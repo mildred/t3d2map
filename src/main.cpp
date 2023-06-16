@@ -64,7 +64,9 @@ bool parse_line(ifstream &f, std::string &line, bool trim_left = true) {
   return true;
 }
 
-std::regex reg_keyvals("^\\s*(Begin\\s+\\S+\\s+)?((\\S+)=(\\S+)\\s*)*$");
+std::regex reg_conversion_line("^(\\S+)\\s+(\\S+)\\s+(\\S+)$");
+std::regex reg_keyvals("^\\s*(Begin\\s+\\S+\\s+)?(((\\S+)=(\\S+)\\s*)*)$");
+std::regex reg_keyval_spc("([^=]+)=(\\S*)\\s*");
 std::regex reg_polygon_vertex("^Vertex\\s+([^,]+),([^,]+),([^,]+)$");
 std::regex reg_polygon_vector("^(Vertex|Origin|TextureU|TextureV)\\s+([^,]+),([^,]+),([^,]+)$");
 std::regex reg_polygon_pan("^Pan\\s+U=(\\S+)\\s+V=(\\S+)$");
@@ -72,6 +74,50 @@ std::regex reg_polygon_attr("^(\\S+)\\s+([^,]+),([^,]+),([^,]+)$");
 std::regex reg_keyval("^([^=]+)=(.*)$");
 std::regex reg_location("^Location=\\((.*)\\)$");
 std::regex reg_xyz_vector_var("([XYZ])=([^,\\)]+)");
+
+struct TextureConversion {
+  TextureConversion() {}
+  virtual std::string convert(std::string) = 0;
+  virtual std::set<std::string> packages() = 0;
+};
+
+struct FileTextureConversionLine {
+  FileTextureConversionLine() {}
+  FileTextureConversionLine(std::string pkg, std::string tex) : package(pkg), texture(tex) {}
+  std::string package;
+  std::string texture;
+};
+
+class FileTextureConversion: public TextureConversion {
+  std::map<std::string, FileTextureConversionLine> map;
+  std::set<std::string> pkgs;
+
+  public:
+  FileTextureConversion() { }
+  FileTextureConversion(std::string fname) {
+    ifstream f(fname);
+    std::string line;
+    std::smatch m;
+
+    while (std::getline(f, line)) {
+      if (!regex_match(line, m, reg_conversion_line)) continue;
+      FileTextureConversionLine convline(m[2], m[3]);
+      map[m[1]] = convline;
+    }
+  }
+
+  virtual std::string convert(std::string tex) {
+    FileTextureConversionLine res = map[tex];
+    if (res.texture == "") return tex;
+
+    pkgs.insert(res.package);
+    return res.texture;
+  };
+
+  virtual std::set<std::string> packages() {
+    return pkgs;
+  };
+};
 
 struct CsgNode {
   size_t index;
@@ -136,6 +182,17 @@ void parse_xyz_vector(std::string vector, double &x, double &y, double &z) {
   }
 }
 
+bool has_uvmap(Mesh &mesh) {
+  bool found;
+  UVPropertyMap uvmap;
+  boost::tie(uvmap, found) = mesh.property_map<face_descriptor,UVMap>("f:uv");
+  return found;
+}
+
+void add_uvmap(Mesh &mesh) {
+  mesh.add_property_map<face_descriptor,UVMap>("f:uv", UVMap());
+}
+
 class FaceUVMapCopyVisitor {
   using Triangle_mesh = Mesh;
   using Boolean_operation_type = CGAL::Polygon_mesh_processing::Corefinement::Boolean_operation_type;
@@ -143,56 +200,68 @@ class FaceUVMapCopyVisitor {
 
   UVPropertyMap uvmap;
   bool has_uvmap;
+  bool debug;
 
   public:
 
-  FaceUVMapCopyVisitor(Triangle_mesh &mesh) {
+  FaceUVMapCopyVisitor(Triangle_mesh &mesh) : debug(true) {
     boost::tie(uvmap, has_uvmap) = mesh.property_map<face_descriptor,UVMap>("f:uv");
   }
 
-  FaceUVMapCopyVisitor() : has_uvmap(false) {
+  FaceUVMapCopyVisitor() : has_uvmap(false), debug(false) {
   }
 
   void before_subface_creations (face_descriptor f_split, const Triangle_mesh &tm) {
     last_f_split = f_split;
+    bool found;
+    UVPropertyMap uv;
+    boost::tie(uv, found) = tm.property_map<face_descriptor,UVMap>("f:uv");
+    if (debug) cerr << "last_f_split = " << last_f_split << " (mesh given) " << uv[f_split].texture << endl;
   }
 
   void before_subface_creations (face_descriptor f_split) {
     last_f_split = f_split;
+    if (debug) cerr << "last_f_split = " << last_f_split << " (visitor mesh) " << uvmap[f_split].texture << endl;
   }
 
   void after_subface_created (face_descriptor f_new, const Triangle_mesh &tm) {
     bool found;
     UVPropertyMap uvmap;
     boost::tie(uvmap, found) = tm.property_map<face_descriptor,UVMap>("f:uv");
-    if (has_uvmap) {
-      // TODO
-      // uvmap[f_new] = uvmap[last_f_split];
+    if (found) {
+      if (debug) cerr << "uvmap[f_new] = uvmap[last_f_split] (from given mesh) " << f_new << " " << last_f_split << " " << uvmap[last_f_split].texture << endl;
+      uvmap[f_new] = uvmap[last_f_split];
     }
   }
+
   void after_subface_created (face_descriptor f_new) {
     if (has_uvmap) {
-      // TODO
-      // uvmap[f_new] = uvmap[last_f_split];
+      if (debug) cerr << "uvmap[f_new] = uvmap[last_f_split] (from visitor mesh) " << f_new << " " << last_f_split << " " << uvmap[last_f_split].texture << endl;
+      uvmap[f_new] = uvmap[last_f_split];
     }
   }
 
   void after_face_copy (face_descriptor f_src, const Triangle_mesh &tm_src, face_descriptor f_tgt, const Triangle_mesh &tm_tgt) {
-    bool found, created;
+    bool found1, found2;
     UVPropertyMap uvmap1, uvmap2;
-    boost::tie(uvmap, has_uvmap) = tm_src.property_map<face_descriptor,UVMap>("f:uv");
-    boost::tie(uvmap2, created) = const_cast<Triangle_mesh&>(tm_tgt).add_property_map<face_descriptor,UVMap>("f:uv", UVMap());
-    if (found) {
-      // TODO
-      // uvmap2[f_tgt] = uvmap1[f_src];
+    boost::tie(uvmap1, found1) = tm_src.property_map<face_descriptor,UVMap>("f:uv");
+    // boost::tie(uvmap2, created) = const_cast<Triangle_mesh&>(tm_tgt).add_property_map<face_descriptor,UVMap>("f:uv", UVMap());
+    boost::tie(uvmap2, found2) = tm_tgt.property_map<face_descriptor,UVMap>("f:uv");
+    if (found1 && found2) {
+      if (debug) cerr << "uvmap2[f_tgt] = uvmap1[f_src] " << f_tgt << " " << f_src << " " << uvmap1[f_src].texture << endl;
+      uvmap2[f_tgt] = uvmap1[f_src];
+    } else if (!found2) {
+      cerr << "Could not find property_map(f:uv) for destination mesh" << endl;
+    } else if (!found1) {
+      cerr << "Could not find property_map(f:uv) for source mesh " /*<< tm_src*/ << endl;
     }
   }
 
   // void before_subface_creations(face_descriptor f_split, const Triangle_mesh& tm){}
   void after_subface_creations(){}
   void before_subface_created(){}
-   void after_subface_creations(const Triangle_mesh& tm){}
-   void before_subface_created(const Triangle_mesh& tm){}
+  void after_subface_creations(const Triangle_mesh& tm){}
+  void before_subface_created(const Triangle_mesh& tm){}
   // void after_subface_created(face_descriptor f_new, const Triangle_mesh& tm){}
 
   void before_edge_split(halfedge_descriptor h, const Triangle_mesh& tm){}
@@ -275,13 +344,20 @@ struct Map {
     if (z > zmax) zmax = z;
   }
 
-  bool parse_keyval(std::string line, std::map<std::string,std::string> res) {
+  bool parse_keyval(std::string line, std::map<std::string,std::string> &res) {
     std::smatch m;
     if (!regex_match(line, m, reg_keyvals)) return false;
-    for(int i = 2; i+2 < m.size(); i+=3) {
-      res[m[i+1]] = m[i+2];
-      cerr << "keyval " << m[i+1] << " : " << m[i+2] << endl;
+    std::string keyvals = m[2];
+    cerr << "parse_keyval from: " << keyvals << endl;
+
+    std::sregex_iterator rit( keyvals.begin(), keyvals.end(), reg_keyval_spc);
+    while(rit != std::sregex_iterator()) {
+      std::smatch m = *rit;
+      cerr << "parse_keyval [" << m[1] << "]=" << m[2] << endl;
+      res[m[1]] = m[2];
+      ++rit;
     }
+
     return true;
   }
 
@@ -297,6 +373,8 @@ struct Map {
       return false;
     }
 
+    cerr << "parse_polygon: polygon_line: " << polygon_line << endl;
+    cerr << "parse_polygon: Texture=" << keyval["Texture"] << endl;
     texture_map.texture = keyval["Texture"];
 
     while (parse_line(f, line)) {
@@ -304,6 +382,7 @@ struct Map {
         const face_descriptor f = mesh.add_face(vertices);
         // TODO: flip normal if needed
         uvmap[f] = texture_map;
+        cerr << "parse_polygon: uvmap[" << f << "]=" << texture_map.texture << endl;
         return true;
       } else if (regex_match(line, m, reg_polygon_vertex)) {
         double x = stod(m[1]);
@@ -492,12 +571,18 @@ struct Map {
         result = bounding_nef.intersection(plane, Nef::CLOSED_HALFSPACE);
       }
 
-      CGAL::convert_nef_polyhedron_to_polygon_mesh(result, res);
+      Mesh res2;
+      CGAL::convert_nef_polyhedron_to_polygon_mesh(result, res2);
+      res = res2;
     } else {
       cerr << "Clip bounding box" << endl;
       clip(bounding, plane, clip_volume(true));
       res = bounding;
     }
+
+    // Add empty property map so each mesh in the process has it and we can fail
+    // if we detect a mesh without a property map.
+    add_uvmap(res);
 
     return true;
   }
@@ -508,6 +593,12 @@ struct Map {
     using namespace CGAL;
     using Vector_3 = Kernel::Vector_3;
     using Plane_3 = Kernel::Plane_3;
+
+
+    if (!has_uvmap(current)) {
+      cerr << "Missing UV Map in source mesh for clip_mesh()" << endl;
+      return false;
+    }
 
     const bool debug = false;
 
@@ -567,46 +658,49 @@ struct Map {
         convex = false;
         Mesh complement;
 
-        const bool custom_clip = false;
-        const bool use_clip = false;
-        if (use_clip && custom_clip) {
-          cerr << "TODO: manual clip" << endl;
-          cerr << "TODO: hole filling" << endl;
-          // for all holes created:
-          // triangulate_hole(mesh, an_edge_of_the_hole)
+        FaceUVMapCopyVisitor vis;
+        Mesh halfspace;
+        Mesh current_res;
+        if (!get_clipped_bounding_box(halfspace, clip_plane)) return false;
+        if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split_tool.obj", halfspace);
+        if (!has_uvmap(halfspace)) {
+          cerr << "halfspace: missing uvmap" << endl;
           return false;
-        } else if (use_clip) {
-          complement = current;
-          cerr << "clip current mesh" << endl;
-          clip(current, clip_plane, clip_volume(true));
-          if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split.obj", current);
-          cerr << "clip complement mesh" << endl;
-          clip(complement, rclip_plane, clip_volume(true));
-          if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split_complement.obj", complement);
-
-          // Maybe try with clip_volume(false) and manually fill holes
-          // (does not work)
-          // triangulate_hole(current, )
-          // triangulate_hole(complement)
-        } else {
-          // Alternative to clipping, use CSG difference instead of infinite
-          // plane clipping which seems to have some issues.
-          FaceUVMapCopyVisitor vis(current);
-          Mesh halfspace;
-          Mesh current_res;
-          if (!get_clipped_bounding_box(halfspace, clip_plane)) return false;
-          if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split_tool.obj", halfspace);
-          cerr << "clip/intersection current mesh" << endl;
-          // TODO: keep property_map
-          corefine_and_compute_intersection(current, halfspace, current_res, CGAL::parameters::visitor(vis));
-          if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split.obj", current_res);
-          if (!get_clipped_bounding_box(halfspace, clip_plane)) return false;
-          cerr << "clip/intersection complement mesh" << endl;
-          // TODO: keep property_map
-          corefine_and_compute_difference(current, halfspace, complement, CGAL::parameters::visitor(vis));
-          if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split_complement.obj", complement);
-          current = current_res;
         }
+
+        cerr << "clip/intersection current mesh" << endl;
+        halfspace.add_property_map<face_descriptor,UVMap>("f:uv", UVMap());
+        current_res.add_property_map<face_descriptor,UVMap>("f:uv", UVMap());
+        corefine_and_compute_intersection(current, halfspace, current_res, CGAL::parameters::visitor(vis));
+        if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split.obj", current_res);
+
+        cerr << "clip/intersection complement mesh" << endl;
+        complement.add_property_map<face_descriptor,UVMap>("f:uv", UVMap());
+        if (!has_uvmap(current)) {
+          cerr << "current: missing uvmap" << endl;
+          return false;
+        }
+        if (!has_uvmap(halfspace)) {
+          cerr << "halfspace: missing uvmap (bis)" << endl;
+          return false;
+        }
+        if (!has_uvmap(complement)) {
+          cerr << "complement: missing uvmap" << endl;
+          return false;
+        }
+        corefine_and_compute_difference(current, halfspace, complement, CGAL::parameters::visitor(vis));
+        if (debug_meshes) CGAL::IO::write_OBJ("dbg_last_split_complement.obj", complement);
+        current = current_res;
+
+        if (!has_uvmap(complement)) {
+          cerr << "Missing UV Map in source mesh for clip_mesh complement" << endl;
+          return false;
+        }
+        if (!has_uvmap(current)) {
+          cerr << "Missing UV Map in source mesh for clip_mesh current (result)" << endl;
+          return false;
+        }
+
         cerr << "push back 2 meshes" << endl;
         queue.push_back(complement);
         queue.push_back(current);
@@ -635,8 +729,31 @@ struct Map {
 
     if (convex) {
       // No concave surface got split, the mesh is convex
-      // res.push_back(current);
-      split_connected_components(current, res);
+      Mesh::Property_map<face_descriptor, std::size_t> fccmap = current.add_property_map<face_descriptor, std::size_t>("f:CC").first;
+      std::size_t num_components = connected_components(current, fccmap);
+
+      while (num_components > 1) {
+        Mesh comp = current;
+        face_descriptor fd = *faces(comp).first;
+
+        // find first connected component
+        std::vector<face_descriptor> cc;
+        connected_component(fd, comp, std::back_inserter(cc));
+        keep_connected_components(comp, cc);
+        res.push_back(comp);
+
+        std::vector<face_descriptor> cc2;
+        connected_component(fd, current, std::back_inserter(cc2));
+        remove_connected_components(current, cc2);
+        num_components = connected_components(current, fccmap);
+      }
+
+      if (num_components == 1) {
+        res.push_back(current);
+      } else {
+        // TODO: split disconnected components while keeping the propertry map
+        split_connected_components(current, res); // this removes the uvmap
+      }
     }
 
     return true;
@@ -652,7 +769,7 @@ struct Map {
       cerr << "Clip #" << step << " mesh " << queue.size() << " / " << (queue.size() + res.size()) << endl;
       Mesh working = queue.front();
       queue.pop_front();
-      orient_to_bound_a_volume(working); // TODO: ensure it keeps property map
+      orient_to_bound_a_volume(working);
       if (debug_meshes) CGAL::IO::write_OBJ(format("dbg_convex_step_{}.obj", step), working);
       if(!clip_mesh(working, queue, res)) return false;
       step++;
@@ -665,6 +782,7 @@ struct Map {
 
     Mesh result;
     if (!get_bounding_box(result)) return false;
+    result.add_property_map<face_descriptor,UVMap>("f:uv", UVMap());
     if (debug_meshes) CGAL::IO::write_OBJ("dbg_bounding.obj", result);
 
     int step = 0;
@@ -675,19 +793,19 @@ struct Map {
       Mesh step_brush = meshes[csg_node.index];
       std::string op = "noop";
       FaceUVMapCopyVisitor vis(step_brush);
-      if (!triangulate_faces(step_brush, CGAL::parameters::visitor(vis))) { // TODO: keep face property map
+      if (!triangulate_faces(step_brush, CGAL::parameters::visitor(vis))) {
         cerr << "Cannot triangulate mesh " << csg_node.index << endl;
         return false;
       }
       switch (csg_node.oper) {
         case CSG_Add:
-          // TODO: keep property_map
+          add_uvmap(step_res);
           corefine_and_compute_union(result, step_brush, step_res, CGAL::parameters::visitor(vis));
           result = step_res;
           op = "csg-add";
           break;
         case CSG_Subtract:
-          // TODO: keep property_map
+          add_uvmap(step_res);
           corefine_and_compute_difference(result, step_brush, step_res, CGAL::parameters::visitor(vis));
           result = step_res;
           op = "csg-sub";
@@ -807,10 +925,15 @@ struct Map {
     return v / len;
   }
 
-  bool generate_brush(ostream &map, int idx, Mesh &m) {
+  bool generate_brush(ostream &map, int idx, Mesh &m, TextureConversion &conv) {
     using Plane_3 = Kernel::Plane_3;
     using Point_3 = Kernel::Point_3;
     using Vector_3 = Kernel::Vector_3;
+
+    if (!has_uvmap(m)) {
+      cerr << "generate_brush: missing uvmap" << endl;
+      return false;
+    }
 
     bool uvfound;
     UVPropertyMap uvmap;
@@ -853,6 +976,11 @@ struct Map {
       Vector_3 b1 = unit_vector(plane.base1());
       Vector_3 b2 = unit_vector(plane.base2());
 
+      if (std::find(planes.begin(), planes.end(), plane) != planes.end()) {
+        continue;
+      }
+      planes.push_back(plane);
+
       Point_3 p0 = v0;
       Point_3 p1 = p0 + b1;
       Point_3 p2 = p0 + b2;
@@ -864,9 +992,6 @@ struct Map {
         uv.u = b1;
         uv.v = b2;
       }
-
-      if (std::find(planes.begin(), planes.end(), plane) != planes.end()) continue;
-      planes.push_back(plane);
 
       if (uv.u * normal != 0) {
         cerr << "U vector is not included in face: u.n = " << (uv.u * normal) << endl;
@@ -884,7 +1009,7 @@ struct Map {
         << "( " << p2.x() << " " << p2.y() << " " << p2.z() << " ) "
         << "( " << p1.x() << " " << p1.y() << " " << p1.z() << " ) "
         << "( " << p0.x() << " " << p0.y() << " " << p0.z() << " ) "
-        << uv.texture << " "
+        << conv.convert(uv.texture) << " "
         << "[ "
           << uv.u.x() << " " << uv.u.y() << " " << uv.u.z() << " "
           << uv.upan // TODO: pan from the world origin
@@ -902,10 +1027,10 @@ struct Map {
     return true;
   }
 
-  bool generate_brushes(ostream &map) {
+  bool generate_brushes(ostream &map, TextureConversion &conv) {
     int idx = 0;
     for(Mesh m : this->worldspan) {
-      if (!generate_brush(map, idx++, m)) {
+      if (!generate_brush(map, idx++, m, conv)) {
         map << "// ERROR: stop export" << endl;
         return false;
       }
@@ -913,17 +1038,36 @@ struct Map {
     return true;
   }
 
-  bool generate_map_file(ostream &map) {
+  bool generate_map_file(ostream &map, std::string game, TextureConversion &conv) {
     bool res = true;
+
+    // convert all textures beforehand to get the package list
+    for(Mesh m : this->worldspan) {
+      bool uvfound;
+      UVPropertyMap uvmap;
+      boost::tie(uvmap, uvfound) = m.property_map<face_descriptor,UVMap>("f:uv");
+      if (!uvfound) continue;
+
+      for(face_descriptor f : m.faces()) {
+        conv.convert(uvmap[f].texture);
+      }
+    }
+    std::string tex_packages;
+    for(std::string pkg : conv.packages()) {
+      if (tex_packages != "") tex_packages += ";";
+      tex_packages += pkg;
+    }
+
     map
       << fixed
-      << "// Game: Generic" << endl
+      << "// Game: " << game << endl
       << "// Format: Valve" << endl
       << "// Generated: t3d2map" << endl
       << "{" << endl
       << "  \"mapversion\" \"220\"" << endl
-      << "  \"classname\" \"worldspan\"" << endl;
-    res = generate_brushes(map);
+      << "  \"classname\" \"worldspawn\"" << endl
+      << "  \"_tb_textures\" \"" << tex_packages << "\"" << endl;
+    res = generate_brushes(map, conv);
     map
       << "}" << endl;
     return res;
@@ -934,6 +1078,8 @@ struct Map {
 int main(int argc, char **argv) {
   install_backtrace();
 
+  std::string game = "Generic";
+  FileTextureConversion file_conv;
   ofstream output_file;
   ostream *mapfile = &cout;
   bool mesh = true;
@@ -951,6 +1097,11 @@ int main(int argc, char **argv) {
     } else if (arg == "--cgal-debug") {
       debugthread = 0;
 #endif
+    } else if (i+1 < argc && arg == "--game") {
+      game = argv[++i];
+    } else if (i+1 < argc && arg == "--convert") {
+      arg = argv[++i];
+      file_conv = FileTextureConversion(arg);
     } else if (i+1 < argc && (arg == "-o" || arg == "--output")) {
       arg = argv[++i];
       output_file = ofstream(arg);
@@ -968,6 +1119,8 @@ int main(int argc, char **argv) {
       << "Options:" << endl
       << "    --nef, --mesh   Choose method to compute the results, default is nef." << endl
       << "    --debug-mesh    Generate in the durrent directoruy the debug meshes" << endl
+      << "    --convert FILE  use FILE for texture conversion" << endl
+      << "    --game NAME     use this game" << endl
       << "    -o OUTPUT       Generate map file to OUTPUT (or stdout if not defined)" << endl;
     return 1;
   }
@@ -985,7 +1138,7 @@ int main(int argc, char **argv) {
   } else {
     if (!map.construct_csg_nef(false)) return 1;
   }
-  if (!map.generate_map_file(*mapfile)) return 1;
+  if (!map.generate_map_file(*mapfile, game, file_conv)) return 1;
   return 0;
 }
 
