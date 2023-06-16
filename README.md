@@ -1,19 +1,15 @@
-# t3d2map-attempt
-Convert WhelOfTime / Unreal1 maps in t3d to something else
+# t3d2map
+Convert WhelOfTime / Unreal1 maps in t3d to Valve .map files
 
-Unfinished draft that tried in both C++ and ruby to make something but failed. See https://github.com/hogsy/t3d2map and my fork of it.
+Work in progress... The issue with this conversion is that map files are only composed of convex brushes while Unreak/t3d starts with a filled world and use CSG operations to excavate from it resulting in mostly concave geometry. This converter makes use of CGAL algorithms to achieve this.
 
-The issue with this conversion is that : 
+![map file created with Unreal 1 engine and opened in TrenchBroom](./screenshoot.png)
 
-- map files are composed of convex only brushes
-- t3d represents a CSG tree buth substracts and adds
-
-![./screenshoot.png]
-
-## New C++ build
+## C++ Build
 
 Conan build does not work because of conan v2, until it works, ensure CGAL is
-installed system-wide
+installed system-wide. Once it works, perhaps this will be how to install the
+CGAL dependency:
 
     conan profile detect --force
     conan install . --output-folder=build --build=missing
@@ -23,6 +19,8 @@ Build with CMake:
     cmake .
     make
 
+## Run
+
 Use:
 
     ./t3d2map ./examples/test.t3d
@@ -31,7 +29,25 @@ Or:
 
     make && rm -f dbg_*.obj && ./t3d2map --debug-mesh --convert ../WoT-conversion/textures/CONVERSION --game WoT -o examples/test.map examples/test.t3d
 
-Roadmap:
+## Usage
+
+The `--game` flag is only used to populate the `// Game: xxx` at the top of the file to ensure TrenchBroom pick up the correct game settings when opening the file.
+
+The CONVERSION file via the `--convert` flag is a file containing a texture for each line. For each texture it has 3 fields separated by spaces:
+
+- the texture name as it appears in t3d file
+- the texture package name for the worldspawn `_tb_textures`
+- the texture name for the .map file
+
+example:
+
+    BannWall1918 textures/AesSedaiT.utx AesSedaiT.utx/BannWall1918
+    BannWall1919 textures/AesSedaiT.utx AesSedaiT.utx/BannWall1919
+    BookBook1752 textures/AesSedaiT.utx AesSedaiT.utx/BookBook1752
+    BookBook1755_m textures/AesSedaiT.utx AesSedaiT.utx/BookBook1755_m
+
+
+## Roadmap:
 
 - [x] Parse t3d files
 - [x] Parse brushes
