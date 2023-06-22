@@ -73,7 +73,15 @@ std::regex reg_polygon_pan("^Pan\\s+U=(\\S+)\\s+V=(\\S+)$");
 std::regex reg_polygon_attr("^(\\S+)\\s+([^,]+),([^,]+),([^,]+)$");
 std::regex reg_keyval("^([^=]+)=(.*)$");
 std::regex reg_location("^Location=\\((.*)\\)$");
+std::regex reg_pre_pivot("^PrePivot=\\((.*)\\)$");
+std::regex reg_main_scale("^MainScale=\\((.*)\\)$");
+std::regex reg_post_scale("^PostScale=\\((.*)\\)$");
+std::regex reg_temp_scale("^TempScale=\\((.*)\\)$");
+std::regex reg_rotation("^Rotation=\\((.*)\\)$");
+std::regex reg_old_location("^OldLocation=\\((.*)\\)$");
 std::regex reg_xyz_vector_var("([XYZ])=([^,\\)]+)");
+std::regex reg_rot_vector_var("(Yaw|Pitch|Roll)=([^,\\)]+)");
+std::regex reg_scale_vector_var("([^=]+)=(\\(?[^,\\)]+\\)?)");
 
 struct TextureConversion {
   TextureConversion() {}
@@ -123,11 +131,84 @@ struct CsgNode {
   size_t index;
   CsgOper oper;
 
+  CsgNode() : index(-1), oper(CSG_None) {}
   CsgNode(size_t index, CsgOper oper) : index(index), oper(oper) {}
 };
 
 struct Transform {
+  double msx, msy, msz;
+  double ppx, ppy, ppz;
+  double yaw, pitch, roll;
+  double psx, psy, psz;
+  double tsx, tsy, tsz;
   double tx, ty, tz;
+
+  Transform() :
+    msx(1), msy(1), msz(1),
+    ppx(0), ppy(0), ppz(0),
+    yaw(0), pitch(0), roll(0),
+    psx(1), psy(1), psz(1),
+    tsx(1), tsy(1), tsz(1),
+    tx(0), ty(0), tz(0)
+  {}
+
+  CGAL::Aff_transformation_3<K> scale(double x, double y, double z) {
+    using FT = typename K::FT;
+    using Affine_transformation_3 = CGAL::Aff_transformation_3<K>;
+
+    return Affine_transformation_3(
+        FT(x), FT(0), FT(0),
+        FT(0), FT(y), FT(0),
+        FT(0), FT(0), FT(z), FT(1));
+  }
+
+  CGAL::Aff_transformation_3<K> rotate(double yaw, double pitch, double roll) {
+    using FT       = typename K::FT;
+    using Affine_transformation_3 = CGAL::Aff_transformation_3<K>;
+
+    // The Unreal Engine uses integer values between -32768 and +32767 to
+    // represent the angle in degrees between -180 and 180, or 0 to 65535 for
+    // the angles of 0 to 360 degrees. This range of values corresponds to the
+    // capacity of a 16-bit integer variable and maybe is an inheritance from
+    // the 1st version of the Unreal Engine, because at this time the
+    // mathematical operations with integers were much faster than the
+    // operations done with float numbers.
+    //
+    // Source: <https://romerounrealscript.blogspot.com/2012/01/using-rotators-in-unrealscript.html>
+
+    const double Pi = 3.1415926535897932;
+    const double RadToDeg = 57.295779513082321600;    // 180 / Pi
+    const double DegToRad = 0.017453292519943296;    // Pi / 180
+    const double UnrRotToRad = 0.00009587379924285;// Pi / 32768
+    const double RadToUnrRot = 10430.3783504704527;// 32768 / Pi
+    const double DegToUnrRot = 182.0444;
+    const double UnrRotToDeg = 0.00549316540360483;
+
+    double rx = UnrRotToRad * roll;
+    double ry = UnrRotToRad * pitch;
+    double rz = UnrRotToRad * yaw;
+
+    double sin_rx = sin(rx), cos_rx = cos(rx);
+    double sin_ry = sin(ry), cos_ry = cos(ry);
+    double sin_rz = sin(rz), cos_rz = cos(rz);
+
+    auto rot_x = Affine_transformation_3(
+        FT(1), FT(0),      FT(0),
+        FT(0), FT(cos_rx), FT(-sin_rx),
+        FT(0), FT(sin_rx), FT(cos_rx), FT(1));
+
+    auto rot_y = Affine_transformation_3(
+        FT(cos_ry),  FT(0), FT(sin_ry),
+        FT(0),       FT(1), FT(0),
+        FT(-sin_ry), FT(0), FT(cos_ry), FT(1));
+
+    auto rot_z = Affine_transformation_3(
+        FT(cos_rz), FT(-sin_rz), FT(0),
+        FT(sin_rz), FT(cos_rz),  FT(0),
+        FT(0),      FT(0),       FT(1), FT(1));
+
+    return rot_z * rot_y * rot_x;
+  }
 
   void transform_import(Mesh &mesh) {
     using FT       = typename K::FT;
@@ -146,11 +227,25 @@ struct Transform {
      *   do TempScale ... x *= TempScale[x], y *= TempScale[y], z *= TempScale[z]
      *   do translation (Location[x], Location[y], Location[z])
      * ENDFOR
+     *
+     * Source: <https://beyondunrealwiki.github.io/pages/t3d-file.html>
      */
 
-    // translate
+    cerr << "scale by:     " << msx << ", " << msy << ", " << msz << endl;
+    cerr << "translate by: " << -ppx << ", " << -ppy << ", " << -ppz << endl;
+    cerr << "rotate by:    rz=" << yaw << ", ry=" << pitch << ", rx=" << roll << endl;
+    cerr << "scale by:     " << psx << ", " << psy << ", " << psz << endl;
+    cerr << "scale by:     " << tsx << ", " << tsy << ", " << tsz << endl;
+    cerr << "translate by: " << tx << ", " << ty << ", " << tz << endl;
+
+    auto main_scale = scale(msx, msy, msz);
+    auto pre_pivot = Affine_transformation_3(Translation(), Vector_3(FT(-ppx), FT(-ppy), FT(-ppz)));
+    auto rotation = rotate(yaw, pitch, roll);
+    auto post_scale = scale(psx, psy, psz);
+    auto temp_scale = scale(tsx, tsy, tsz);
     auto translation = Affine_transformation_3(Translation(), Vector_3(FT(tx), FT(ty), FT(tz)));
-    transform(translation, mesh);
+
+    transform(main_scale * pre_pivot * rotation * post_scale * temp_scale * translation, mesh);
   }
 };
 
@@ -179,6 +274,43 @@ void parse_xyz_vector(std::string vector, double &x, double &y, double &z) {
     else if (m[1] == "Y") y = stod(m[2]);
     else if (m[1] == "Z") z = stod(m[2]);
     vector = m.suffix();
+  }
+}
+
+void parse_rotation(std::string vector, double &yaw, double &pitch, double &roll) {
+  std::smatch m;
+
+  yaw = 0.0;
+  pitch = 0.0;
+  roll = 0.0;
+  while(regex_search(vector, m, reg_rot_vector_var)) {
+    //cerr << "rotation found " << m[0] << " in " << vector << endl;
+    if (m[1] == "Yaw") yaw = stod(m[2]);
+    else if (m[1] == "Pitch") pitch = stod(m[2]);
+    else if (m[1] == "Roll") roll = stod(m[2]);
+    vector = m.suffix();
+  }
+}
+
+void parse_xyz_scale(std::string vector, double &x, double &y, double &z) {
+  std::smatch m;
+  x = 1.0;
+  y = 1.0;
+  z = 1.0;
+
+  while(regex_search(vector, m, reg_scale_vector_var)) {
+    //cerr << "scale found " << m[0] << " in " << vector << endl;
+    vector = m.suffix();
+    if (m[1] == "Scale") {
+      std::string scale_vec = m[2];
+      while(regex_search(scale_vec, m, reg_xyz_vector_var)) {
+        //cerr << "vector found " << m[0] << " in " << vector << endl;
+        if (m[1] == "X") x = stod(m[2]);
+        else if (m[1] == "Y") y = stod(m[2]);
+        else if (m[1] == "Z") z = stod(m[2]);
+        scale_vec = m.suffix();
+      }
+    }
   }
 }
 
@@ -432,7 +564,7 @@ struct Map {
     return false;
   }
 
-  bool parse_brush(ifstream &f, std::string actor_line, CsgOper csg_oper, Transform t) {
+  bool parse_brush(ifstream &f, std::string actor_line, CsgOper csg_oper, CsgNode *res) {
     using namespace CGAL::Polygon_mesh_processing;
 
     Mesh mesh;
@@ -447,12 +579,11 @@ struct Map {
     while (parse_line(f, line)) {
       if (line.starts_with("End Brush")) {
         stitch_borders(mesh);
-        // Transform mesh
-        t.transform_import(mesh);
         // Add mesh
         size_t index = meshes.size();
         meshes.push_back(mesh);
-        csg_tree.push_back(CsgNode(index, csg_oper));
+        *res = CsgNode(index, csg_oper);
+        csg_tree.push_back(*res);
         return true;
       } else if (line.starts_with("Begin PolyList")) {
         if (!parse_polylist(f, line, mesh, uvmap)) return false;
@@ -467,14 +598,37 @@ struct Map {
     Transform t;
     std::string line;
     std::smatch m;
+    CsgNode csg_node;
     CsgOper csg_oper = CSG_None;
+    bool has_mesh = false;
     while (parse_line(f, line)) {
       if (line.starts_with("End Actor")) {
+        // Transform mesh
+        if(has_mesh) t.transform_import(meshes[csg_node.index]);
         return true;
       } else if (line.starts_with("Begin Brush")) {
-        if (!parse_brush(f, line, csg_oper, t)) return false;
+        if (!parse_brush(f, line, csg_oper, &csg_node)) return false;
+        has_mesh = true;
       } else if (regex_match(line, m, reg_location)) {
         parse_xyz_vector(m[1], t.tx, t.ty, t.tz);
+      } else if (regex_match(line, m, reg_pre_pivot)) {
+        cerr << "Parse PrePivot: " << m[0] << " | " << m[1] << endl; 
+        parse_xyz_vector(m[1], t.ppx, t.ppy, t.ppz);
+      } else if (regex_match(line, m, reg_main_scale)) {
+        parse_xyz_scale(m[1], t.msx, t.msy, t.msz);
+      } else if (regex_match(line, m, reg_post_scale)) {
+        parse_xyz_scale(m[1], t.psx, t.psy, t.psz);
+      } else if (regex_match(line, m, reg_temp_scale)) {
+        parse_xyz_scale(m[1], t.tsx, t.tsy, t.tsz);
+      } else if (regex_match(line, m, reg_rotation)) {
+        parse_rotation(m[1], t.yaw, t.pitch, t.roll);
+      } else if (regex_match(line, m, reg_old_location)) {
+        // ignore OldLocation (used for movements, location 1 tick ago)
+        //double x, y, z;
+        //parse_xyz_vector(m[1], x, y, z);
+        //t.tx += x;
+        //t.ty += y;
+        //t.tz += z;
       } else if (regex_match(line, m, reg_keyval)) {
         std::string key = m[1];
         std::string val = m[2];
@@ -794,6 +948,7 @@ struct Map {
       std::string op = "noop";
       FaceUVMapCopyVisitor vis(step_brush);
       if (!triangulate_faces(step_brush, CGAL::parameters::visitor(vis))) {
+        if (debug_meshes) CGAL::IO::write_OBJ(format("dbg_step_{}_{}_brush.obj", step, op), step_brush);
         cerr << "Cannot triangulate mesh " << csg_node.index << endl;
         return false;
       }

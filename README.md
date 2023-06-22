@@ -55,6 +55,8 @@ example:
 - [ ] Implement actor rotation
 - [ ] Implement actor scaling
 - [x] Generate CSG concave mesh
+    - [ ] Handle plane meshes (exclude from CSG tree). Currently it voids the
+      entire scene.
 - [x] Decompose in convex meshes
 - [x] Split disjoined meshes while keeping the uvmap
 - [x] Generate .map file
