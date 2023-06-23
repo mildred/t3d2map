@@ -130,9 +130,22 @@ class FileTextureConversion: public TextureConversion {
 struct CsgNode {
   size_t index;
   CsgOper oper;
+  bool in_tree;
 
-  CsgNode() : index(-1), oper(CSG_None) {}
-  CsgNode(size_t index, CsgOper oper) : index(index), oper(oper) {}
+  CsgNode() : index(-1), oper(CSG_None), in_tree(false) {}
+  CsgNode(size_t index, CsgOper oper) : index(index), oper(oper), in_tree(oper != CSG_None) {}
+
+  bool is_null() {
+    return index < 0;
+  }
+};
+
+struct Entity {
+  std::vector<Mesh> &meshes;
+  std::list<CsgNode> csg_tree;
+  std::list<Mesh> result;
+
+  Entity(std::vector<Mesh> &meshes) : meshes(meshes) {}
 };
 
 struct Transform {
@@ -450,14 +463,14 @@ class FaceUVMapCopyVisitor {
 struct Map {
 
   std::vector<Mesh> meshes;
-  std::list<CsgNode> csg_tree;
-  std::list<Mesh> worldspan;
+  std::list<Entity> entities;
+  Entity world;
 
   double xmin, xmax, ymin, ymax, zmin, zmax;
 
   bool debug_meshes;
 
-  Map() {
+  Map() : world(meshes) {
     xmin = 0.0;
     xmax = 0.0;
     ymin = 0.0;
@@ -579,11 +592,24 @@ struct Map {
     while (parse_line(f, line)) {
       if (line.starts_with("End Brush")) {
         stitch_borders(mesh);
+
         // Add mesh
         size_t index = meshes.size();
         meshes.push_back(mesh);
         *res = CsgNode(index, csg_oper);
-        csg_tree.push_back(*res);
+
+        // Check mesh
+        if (res->in_tree) {
+          Mesh m(mesh);
+          if(!triangulate_faces(m)) {
+            cerr << "does not triangulate!" << endl;
+            return false;
+          }
+          if (!is_closed(m) || !does_bound_a_volume(m)) {
+            res->in_tree = false;
+          }
+        }
+
         return true;
       } else if (line.starts_with("Begin PolyList")) {
         if (!parse_polylist(f, line, mesh, uvmap)) return false;
@@ -601,10 +627,19 @@ struct Map {
     CsgNode csg_node;
     CsgOper csg_oper = CSG_None;
     bool has_mesh = false;
+    Entity ent(meshes);
     while (parse_line(f, line)) {
       if (line.starts_with("End Actor")) {
         // Transform mesh
-        if(has_mesh) t.transform_import(meshes[csg_node.index]);
+        if(has_mesh) {
+          t.transform_import(meshes[csg_node.index]);
+          if (csg_node.in_tree) {
+            world.csg_tree.push_back(csg_node);
+          } else {
+            ent.csg_tree.push_back(csg_node);
+            entities.push_back(ent);
+          }
+        }
         return true;
       } else if (line.starts_with("Begin Brush")) {
         if (!parse_brush(f, line, csg_oper, &csg_node)) return false;
@@ -940,8 +975,13 @@ struct Map {
     if (debug_meshes) CGAL::IO::write_OBJ("dbg_bounding.obj", result);
 
     int step = 0;
-    for(CsgNode csg_node : csg_tree) {
+    for(CsgNode csg_node : world.csg_tree) {
       step++;
+      if (!csg_node.in_tree) {
+        cerr << "CSG(Mesh) Step #" << step << ": not in CSG tree, skip"<< endl;
+        continue;
+      }
+
       cerr << "CSG(Mesh) Step #" << step << endl;
       Mesh step_res;
       Mesh step_brush = meshes[csg_node.index];
@@ -991,7 +1031,7 @@ struct Map {
       }
     }
 
-    this->worldspan = convex_meshes;
+    world.result = convex_meshes;
 
     return true;
   }
@@ -1006,7 +1046,7 @@ struct Map {
     Nef result(bounding);
 
     int step = 0;
-    for(CsgNode csg_node : csg_tree) {
+    for(CsgNode csg_node : world.csg_tree) {
       step++;
       cerr << "CSG(Nef) Step #" << step << endl;
       Mesh step_brush = meshes[csg_node.index];
@@ -1148,12 +1188,12 @@ struct Map {
         uv.v = b2;
       }
 
-      if (uv.u * normal != 0) {
+      if (abs(uv.u * normal) >= 1e-3) {
         cerr << "U vector is not included in face: u.n = " << (uv.u * normal) << endl;
         return false;
       }
 
-      if (uv.v * normal != 0) {
+      if (abs(uv.v * normal) >= 1e-3) {
         cerr << "V vector is not included in face: v.n = " << (uv.v * normal) << endl;
         return false;
       }
@@ -1182,9 +1222,9 @@ struct Map {
     return true;
   }
 
-  bool generate_brushes(ostream &map, TextureConversion &conv) {
+  bool generate_brushes(ostream &map, TextureConversion &conv, Entity &ent) {
     int idx = 0;
-    for(Mesh m : this->worldspan) {
+    for(Mesh m : ent.result) {
       if (!generate_brush(map, idx++, m, conv)) {
         map << "// ERROR: stop export" << endl;
         return false;
@@ -1197,7 +1237,7 @@ struct Map {
     bool res = true;
 
     // convert all textures beforehand to get the package list
-    for(Mesh m : this->worldspan) {
+    for(Mesh m : world.result) {
       bool uvfound;
       UVPropertyMap uvmap;
       boost::tie(uvmap, uvfound) = m.property_map<face_descriptor,UVMap>("f:uv");
@@ -1222,7 +1262,7 @@ struct Map {
       << "  \"mapversion\" \"220\"" << endl
       << "  \"classname\" \"worldspawn\"" << endl
       << "  \"_tb_textures\" \"" << tex_packages << "\"" << endl;
-    res = generate_brushes(map, conv);
+    res = generate_brushes(map, conv, world);
     map
       << "}" << endl;
     return res;
