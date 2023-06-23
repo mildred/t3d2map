@@ -5,6 +5,29 @@ Work in progress... The issue with this conversion is that map files are only co
 
 ![map file created with Unreal 1 engine and opened in TrenchBroom](./screenshoot.png)
 
+This is however a very heavy work even for very simple maps because CSG and
+triangulation create many many vertices and there is no optimization. Perhaps a
+better solution would be to parse Unreal compiled maps and extract the BSP tree
+which already contains a stream of convex polygons ready to be imported in any
+other engine without running costly CSG.
+
+- CSG : constructive solid geometry : boolean operations resulting in a very
+  concave mesh
+- BSP : Binary Space Partitionning : a way to represent a concave mesh with a
+  set of convex meshes by partitionning the concave mesh in various places until
+  this makes a convex mesh.
+
+This repository makes use of CGAL to perform the CSG to get the concave mesh.
+This in itself is error prone because the concavity of Unreal Engine maps is
+very concave. Also planes that splits zones cannot be represented. Then there is
+an improvized BSP cutting algorithm (cut at random places until there are no
+more concave meshes) that is very inefficient.
+
+T3D file format stores the CSG tree but the compiled Unreal Engine maps have the
+pre-computed BSP tree that might be exported. This would be a better strategy.
+See <https://www.acordero.org/projects/unreal-tournament-package-tool/> which
+can open Unreal Engine Packages and view polys.
+
 ## C++ Build
 
 Conan build does not work because of conan v2, until it works, ensure CGAL is
@@ -29,6 +52,10 @@ Or:
 
     make && rm -f dbg_*.obj && ./t3d2map --debug-mesh --convert ../WoT-conversion/textures/CONVERSION --game WoT -o examples/test.map examples/test.t3d
 
+Or:
+
+    make && for t3d in ~/Games/wineprefix/WoT/drive_c/*.T3D; do ./t3d2map --obj "${t3d%.*}.obj" "$t3d"; done
+
 ## Usage
 
 The `--game` flag is only used to populate the `// Game: xxx` at the top of the file to ensure TrenchBroom pick up the correct game settings when opening the file.
@@ -48,6 +75,14 @@ example:
 
 
 ## Roadmap:
+
+- [x] Parse a list of T3D files representing (convex?) polygons
+- [x] Generate .obj file for each .t3d file
+- [ ] Check that this is really the BSP tree for a map... not sure anymore
+- [ ] If the polygons are all convex, generate a map file
+- [ ] Add code to parse Unreal Engine packages instead of t3d files
+
+---
 
 - [x] Parse t3d files
 - [x] Parse brushes
@@ -146,6 +181,11 @@ Boolean operations:
 tools:
 
 - https://github.com/PyMesh/PyMesh
+- https://www.acordero.org/projects/unreal-tournament-package-tool/
+
+---
+
+- https://www.oldunreal.com/wiki/index.php?title=Main_Page
 
 ## UV Mapping
 

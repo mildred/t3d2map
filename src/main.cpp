@@ -67,8 +67,8 @@ bool parse_line(ifstream &f, std::string &line, bool trim_left = true) {
 std::regex reg_conversion_line("^(\\S+)\\s+(\\S+)\\s+(\\S+)$");
 std::regex reg_keyvals("^\\s*(Begin\\s+\\S+\\s+)?(((\\S+)=(\\S+)\\s*)*)$");
 std::regex reg_keyval_spc("([^=]+)=(\\S*)\\s*");
-std::regex reg_polygon_vertex("^Vertex\\s+([^,]+),([^,]+),([^,]+)$");
-std::regex reg_polygon_vector("^(Vertex|Origin|TextureU|TextureV)\\s+([^,]+),([^,]+),([^,]+)$");
+std::regex reg_polygon_vertex("^Vertex\\s+([^,\\s*]+)\\s*,\\s*([^,\\s*]+)\\s*,\\s*([^,\\s*]+)$");
+std::regex reg_polygon_vector("^(Vertex|Origin|TextureU|TextureV)\\s+([^,\\s]+)\\s*,\\s*([^,\\s*]+)\\s*,\\s*([^,\\s*]+)$");
 std::regex reg_polygon_pan("^Pan\\s+U=(\\S+)\\s+V=(\\S+)$");
 std::regex reg_polygon_attr("^(\\S+)\\s+([^,]+),([^,]+),([^,]+)$");
 std::regex reg_keyval("^([^=]+)=(.*)$");
@@ -513,7 +513,7 @@ struct Map {
     std::smatch m;
     std::string line;
 
-    if (!parse_keyval(polygon_line, keyval)) {
+    if (polygon_line != "Begin Polygon" && !parse_keyval(polygon_line, keyval)) {
       cerr << "Failed to parse polygon line key-values: " << polygon_line << endl;
       return false;
     }
@@ -557,7 +557,7 @@ struct Map {
         // cerr << "Polygon line " << m[1] << ": " << m[2] << m[3] << m[4] << endl;
       } else {
         cerr << "Unexpected Polygon line: " << line << endl;
-        return false;
+        // return false;
       }
     }
     return false;
@@ -575,6 +575,17 @@ struct Map {
       }
     }
     return false;
+  }
+
+  bool parse_polylist(ifstream &f, Mesh &mesh) {
+    std::string line;
+    bool created;
+    UVPropertyMap uvmap;
+
+    boost::tie(uvmap, created) = mesh.add_property_map<face_descriptor,UVMap>("f:uv", UVMap());
+
+    if (!parse_line(f, line)) return false;
+    return parse_polylist(f, line, mesh, uvmap);
   }
 
   bool parse_brush(ifstream &f, std::string actor_line, CsgOper csg_oper, CsgNode *res) {
@@ -1274,6 +1285,7 @@ int main(int argc, char **argv) {
   install_backtrace();
 
   std::string game = "Generic";
+  std::string objfile = "";
   FileTextureConversion file_conv;
   ofstream output_file;
   ostream *mapfile = &cout;
@@ -1297,6 +1309,8 @@ int main(int argc, char **argv) {
     } else if (i+1 < argc && arg == "--convert") {
       arg = argv[++i];
       file_conv = FileTextureConversion(arg);
+    } else if (i+1 < argc && arg == "--obj") {
+      objfile = argv[++i];
     } else if (i+1 < argc && (arg == "-o" || arg == "--output")) {
       arg = argv[++i];
       output_file = ofstream(arg);
@@ -1316,6 +1330,7 @@ int main(int argc, char **argv) {
       << "    --debug-mesh    Generate in the durrent directoruy the debug meshes" << endl
       << "    --convert FILE  use FILE for texture conversion" << endl
       << "    --game NAME     use this game" << endl
+      << "    --obj NAME      Generate .obj file for a polygon in a T3D file" << endl
       << "    -o OUTPUT       Generate map file to OUTPUT (or stdout if not defined)" << endl;
     return 1;
   }
@@ -1327,13 +1342,19 @@ int main(int argc, char **argv) {
     perror("Error open");
     exit(1);
   }
-  if (!map.parse_map(t3dfile)) return 1;
-  if (mesh) {
-    if (!map.construct_csg_mesh(false)) return 1;
+  if (objfile != "") {
+    Mesh m;
+    if (!map.parse_polylist(t3dfile, m)) return 1;
+    CGAL::IO::write_OBJ(objfile, m);
   } else {
-    if (!map.construct_csg_nef(false)) return 1;
+    if (!map.parse_map(t3dfile)) return 1;
+    if (mesh) {
+      if (!map.construct_csg_mesh(false)) return 1;
+    } else {
+      if (!map.construct_csg_nef(false)) return 1;
+    }
+    if (!map.generate_map_file(*mapfile, game, file_conv)) return 1;
   }
-  if (!map.generate_map_file(*mapfile, game, file_conv)) return 1;
   return 0;
 }
 
