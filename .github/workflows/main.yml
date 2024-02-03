@@ -1,0 +1,33 @@
+name: build
+
+on: [push, workflow_dispatch, pull_request]
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: lukka/get-cmake@latest
+
+      - name: Install Conan
+        id: conan
+        uses: turtlebrowser/get-conan@main
+
+      - name: Install dependencies
+        run: |
+          conan profile detect --force
+          conan install conanfile.txt --build=missing
+
+      - uses: lukka/run-cmake@v10
+        with:
+          configurePreset: conan-release
+          configurePresetAdditionalArgs: "['-DCMAKE_CXX_COMPILER=g++-13']"
+          buildPreset: conan-release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: t3d2map
+          path: t3d2map
+          compression-level: 9

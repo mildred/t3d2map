@@ -1,4 +1,5 @@
 [requires]
+cgal/5.5.3
 
 [generators]
 CMakeDeps
